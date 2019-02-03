@@ -19,24 +19,15 @@ class Environment:
         self.n_rows = n_rows
         self.n_cols = n_cols
 
-        obstacles = self.generate_random_obstacles(n_rows, n_cols)
+        self.obstacles = self.generate_random_obstacles(n_rows, n_cols)
         team_agents, team_opponents = self.generate_random_agents(
                                                     n=n_agents + n_opponents,
-                                                    obs=obstacles,
                                                     rows=n_rows,
                                                     cols=n_cols
                                                 )
 
         self.agents = [Agent(position=pos) for pos in team_agents]
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
-
-        self.grid = self.grid_init(
-            r=n_rows,
-            c=n_cols,
-            team_agents=team_agents,
-            team_opponents=team_opponents,
-            obstacles=obstacles
-        )
 
     def allowed_moves(self, agent):
         allowed = []
@@ -58,16 +49,18 @@ class Environment:
     def move_agent(self, direction, agent):
         pass
 
-    def grid_init(self, r, c, team_agents, team_opponents, obstacles):
+    def get_grid(self):
 
-        grid = [[0 for _ in range(c)] for _ in range(r)]
-        obstacles_list = sum(obstacles, [])
+        grid = [[0 for _ in range(self.n_cols)] for _ in range(self.n_rows)]
+        obstacles_list = sum(self.obstacles, [])
+        agents_pos = [a.get_position() for a in self.agents]
+        opponents_pos = [a.get_position() for a in self.opponents]
 
-        for i in range(r):
-            for j in range(c):
-                if (i, j) in team_agents:
+        for i in range(self.n_rows):
+            for j in range(self.n_cols):
+                if (i, j) in agents_pos:
                     grid[i][j] = 1
-                elif (i, j) in team_opponents:
+                elif (i, j) in opponents_pos:
                     grid[i][j] = 2
                 elif (i, j) in obstacles_list:
                     grid[i][j] = -1
@@ -79,12 +72,10 @@ class Environment:
 
         return grid
 
-    @staticmethod
-    def generate_random_agents(n, obs, rows, cols, cluster=True):
+    def generate_random_agents(self, n, rows, cols, cluster=True):
         """
         Generates and places random agents in the environment
         :param n: number of agents to create
-        :param obs: obstacles positions use to avoid conflicting agent creation
         :param rows: x dimension of grid
         :param cols: y dimension of grid
         :param cluster: boolean telling whether or not to cluster the to team's position or not
@@ -97,7 +88,7 @@ class Environment:
         y_axis = [j for j in range(0, cols)]
         combos = [(x, y) for x in x_axis for y in y_axis]
 
-        obs_list = sum(obs, [])
+        obs_list = sum(self.obstacles, [])
 
         for item in obs_list:
             if item in combos:
@@ -175,3 +166,4 @@ class Environment:
 
 if __name__ == '__main__':
     test = Environment(10, 10, 3, 3)
+    test.get_grid()
