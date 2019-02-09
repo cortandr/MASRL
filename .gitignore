@@ -1,5 +1,6 @@
 .idea
 .DS_Store
+venv/
 
 
 # Byte-compiled / optimized / DLL files

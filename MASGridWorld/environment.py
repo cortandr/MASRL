@@ -33,7 +33,7 @@ class Environment:
 
     @property
     def grid(self):
-        grid = np.zeros((self.n_rows, self.n_cols))
+        grid = np.zeros((self.n_rows, self.n_cols), np.int8)
         for a in self.agents:
             x, y = a.position
             grid[x][y] = 1
