@@ -9,11 +9,13 @@ import numpy as np
 class Environment:
 
     """
-    Environment class containing all information and operations regarding the environment the agents will be acting in.
+    Environment class containing all information and operations regarding
+    the environment the agents will be acting in.
     Agents are represented in the env as 1s
     Obstacles are represented as -1s
     Opponents are represented as 2s
-    Obstacles are generated randomly, same goes for agents. The latter can be either grouped by team or spawn randomly in the grid
+    Obstacles are generated randomly, same goes for agents.
+    The latter can be either grouped by team or spawn randomly in the grid
     """
 
     def __init__(self, n_rows, n_cols, n_agents, n_opponents):
@@ -28,21 +30,43 @@ class Environment:
                                                     cols=n_cols
                                                 )
 
-        self.agents = [Agent(position=pos) for pos in team_agents]
+        self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
 
     @property
     def grid(self):
         grid = np.zeros((self.n_rows, self.n_cols), np.int8)
         for a in self.agents:
-            x, y = a.position
+            x, y = a.get_position()
             grid[x][y] = 1
         for a in self.opponents:
-            x, y = a.position
+            x, y = a.get_position()
             grid[x][y] = 2
         for a in sum(self.obstacles, []):
             x, y = a
             grid[x][y] = -1
+        return grid
+
+    @property
+    def brain_input_grid(self):
+
+        grid = np.zeros((self.n_rows, self.n_cols, 4), np.int8)
+
+        # Background channel
+        for a in sum(self.obstacles, []):
+            x, y = a
+            grid[x][y][0] = 1
+
+        # Opponents channel
+        for a in self.opponents:
+            x, y = a.get_position()
+            grid[x][y][1] = 1
+
+        # Allies channel
+        for a in self.agents:
+            x, y = a.get_position()
+            grid[x][y][2] = 1
+
         return grid
 
     def allowed_moves(self, agent):
@@ -62,29 +86,8 @@ class Environment:
 
         return allowed
 
-    def move_agent(self, direction, agent):
+    def step(self, direction, agent):
         pass
-
-    def get_grid(self):
-
-        grid = [[0 for _ in range(self.n_cols)] for _ in range(self.n_rows)]
-        obstacles_list = sum(self.obstacles, [])
-        agents_pos = [a.get_position() for a in self.agents]
-        opponents_pos = [a.get_position() for a in self.opponents]
-
-        for ag_pos in agents_pos:
-            x, y = ag_pos
-            grid[x][y] = 1
-
-        for opp_pos in opponents_pos:
-            x, y = opp_pos
-            grid[x][y] = 2
-
-        for obs in obstacles_list:
-            x, y = obs
-            grid[x][y] = -1
-
-        return grid
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
@@ -93,7 +96,8 @@ class Environment:
         :param n_opponents: number of opponents to create
         :param rows: x dimension of grid
         :param cols: y dimension of grid
-        :param cluster: boolean telling whether or not to cluster the to team's position or not
+        :param cluster: boolean telling whether or not to cluster
+        the team's position or not
         :return:
         """
 
@@ -187,4 +191,4 @@ class Environment:
 
 if __name__ == '__main__':
     test = Environment(10, 10, 3, 3)
-    test.get_grid()
+    grid = test.brain_input_grid

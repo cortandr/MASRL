@@ -2,9 +2,10 @@ import uuid
 
 
 class Agent:
-    def __init__(self, position):
+    def __init__(self, position, training=False):
         self.agentID = uuid.uuid4()
         self.position = position
+        self.training = training
         self.controller = None
 
     def choose_action(self, allowed_moves):

@@ -55,12 +55,12 @@ class Viz(object):
 
 if __name__ == '__main__':
 
-    test = Environment(10, 10, 3, 3)
+    test = Environment(20, 20, 3, 3)
     colors = {
         'default': (150, 150, 150),
          0: (255, 255, 255),
          1: (  0, 255,   0),
          2: (  0,   0, 255),
         -1: (  0,   0,   0)}
-    viz = Viz(800, colors)
+    viz = Viz(600, colors)
     viz.single_frame(test)
