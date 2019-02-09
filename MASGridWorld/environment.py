@@ -1,8 +1,9 @@
-from mas_deepRL.Agent.agent import Agent, DummyAgent
+from Agent.agent import Agent, DummyAgent
 from random import randint
-from mas_deepRL.GridWorld.utils import *
+from utils import *
 import random
 from sklearn.cluster import KMeans
+import numpy as np
 
 
 class Environment:
@@ -29,6 +30,20 @@ class Environment:
 
         self.agents = [Agent(position=pos) for pos in team_agents]
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
+
+    @property
+    def grid(self):
+        grid = np.zeros((self.n_rows, self.n_cols))
+        for a in self.agents:
+            x, y = a.position
+            grid[x][y] = 1
+        for a in self.opponents:
+            x, y = a.position
+            grid[x][y] = 2
+        for a in sum(self.obstacles, []):
+            x, y = a
+            grid[x][y] = -1
+        return grid
 
     def allowed_moves(self, agent):
         allowed = []
