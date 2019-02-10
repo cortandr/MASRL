@@ -35,21 +35,31 @@ class Environment:
 
     @property
     def grid(self):
+
+        # Initialize empty grid
         grid = np.zeros((self.n_rows, self.n_cols), np.int8)
+
+        # Place agents
         for a in self.agents:
             x, y = a.get_position()
             grid[x][y] = 1
+
+        # Place opponents
         for a in self.opponents:
             x, y = a.get_position()
             grid[x][y] = 2
+
+        # Place obstacles
         for a in sum(self.obstacles, []):
             x, y = a
             grid[x][y] = -1
+
         return grid
 
     @property
     def brain_input_grid(self):
 
+        # Initialize empty grid
         grid = np.zeros((self.n_rows, self.n_cols, 4), np.int8)
 
         # Background channel
@@ -67,13 +77,18 @@ class Environment:
             x, y = a.get_position()
             grid[x][y][2] = 1
 
+        # Self channel (On training agent)
+        training_agent = next(filter(lambda agent: agent.training, self.agents))
+        x, y = training_agent.training
+        grid[x][y][3] = 1
+
         return grid
 
     def allowed_moves(self, agent):
         allowed = []
 
         if agent.get_pos().x + 1 <= self.n_cols:
-            allowed.append('r')
+            allowed.append('r ')
 
         if agent.get_pos().x - 1 <= self.n_cols:
             allowed.append('l')
@@ -86,7 +101,7 @@ class Environment:
 
         return allowed
 
-    def step(self, direction, agent):
+    def step(self):
         pass
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
@@ -140,7 +155,6 @@ class Environment:
         team_opponents = [pos for pos in ag_pos if pos not in team_agents]
 
         return team_agents, team_opponents
-
 
     @staticmethod
     def generate_random_obstacles(rows, cols):

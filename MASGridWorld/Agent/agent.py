@@ -6,10 +6,14 @@ class Agent:
         self.agentID = uuid.uuid4()
         self.position = position
         self.training = training
+        self.chosen_action = None
         self.controller = None
 
     def choose_action(self, allowed_moves):
         return 'u'
+
+    def get_chosen_action(self):
+        return self.chosen_action
 
     def get_position(self):
         return self.position

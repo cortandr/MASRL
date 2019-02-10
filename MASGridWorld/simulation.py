@@ -16,12 +16,52 @@ class Sim:
             n_agents=allies,
             n_opponents=opponents)
 
+        self.metrics = {
+            "reward": list(),
+            "loss": list()
+        }
+
     def run(self):
         """
         Runs general simulation and takes care of experience table population
         and agents training
         :return:
         """
+
+        sim = 0
+
+        while sim < self.n_games:
+
+            sim_ended = False
+
+            training_agent = next(
+                filter(lambda ag: ag.training, self.environment.agents))
+
+            while not sim_ended:
+
+                # Current state
+                curr_state = self.environment.brain_input_grid
+
+                # Apply step in Environment
+                self.environment.step()
+
+                # Get agent chosen action
+                action = training_agent.get_chosen_action()
+
+                # Get reward
+                reward = 0
+
+                # Get state after chosen action is applied
+                next_state = self.environment.brain_input_grid
+
+                # Store transition in replay table
+                self.experience_replay.append({
+                    "state": curr_state,
+                    "action": action,
+                    "next_state": next_state,
+                    "reward": reward,
+                })
+
 
 
     def train_ally(self):
@@ -36,11 +76,13 @@ class Sim:
             self.training_batch_size)
 
         # Get agent under training
-        training_agent = next(filter(lambda ag: ag.training, self.environment.agents))
+        training_agent = next(
+            filter(lambda ag: ag.training, self.environment.agents))
         exploration_rate = training_agent.brain.exploration_rate
 
         # Get target agent
-        target_agent = next(filter(lambda ag: not ag.training, self.environment.agents))
+        target_agent = next(
+            filter(lambda ag: not ag.training, self.environment.agents))
 
         for transition in mini_batch:
 
@@ -72,6 +114,10 @@ class Sim:
                     target_agent.brain.target_Q: target,
                     target_agent.brain.Q_values: q
                 })
+
+            # Add loss and reward to sim metrics for later evaluation
+            self.metrics["loss"].append(l)
+            self.metrics["accuracy"].append(l)
 
 
 if __name__ == '__main__':
