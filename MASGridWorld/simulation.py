@@ -1,6 +1,8 @@
 import numpy as np
 from environment import Environment
 import random
+import copy
+from Agent.config import *
 
 
 class Sim:
@@ -62,8 +64,6 @@ class Sim:
                     "reward": reward,
                 })
 
-
-
     def train_ally(self):
         """
         Takes a random batch from experience replay memory and uses it to train
@@ -106,6 +106,10 @@ class Sim:
                 # Compute target Q values
                 target = transition["reward"] + exploration_rate * (np.amax(q_next))
 
+            # Update Q values vector with target value
+            target_q = copy.deepcopy(q)
+            target_q[ACTIONS[transition["action"]]] = target
+
             # Train neural net
             l, _ = target_agent.sess.run(
                 [target_agent.brain.loss, target_agent.brain.train_op],
@@ -117,7 +121,7 @@ class Sim:
 
             # Add loss and reward to sim metrics for later evaluation
             self.metrics["loss"].append(l)
-            self.metrics["accuracy"].append(l)
+            self.metrics["reward"].append(transition["reward"])
 
 
 if __name__ == '__main__':
