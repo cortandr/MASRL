@@ -1,4 +1,6 @@
 import uuid
+import numpy as np
+from utils import *
 
 
 class Agent:
@@ -7,10 +9,18 @@ class Agent:
         self.position = position
         self.training = training
         self.chosen_action = None
-        self.controller = None
+        self.brain = None
 
-    def choose_action(self, allowed_moves):
-        return 'u'
+    def choose_action(self, allowed_moves, state):
+        q_values = self.brain.sess.run(
+            self.brain.Q_values,
+            feed_dict={self.brain.input_layer: state})
+
+        moves_mask = np.array([1 if pos else 0 for pos in allowed_moves])
+
+        masked_q_values = q_values * moves_mask
+        best_move_idx = np.argmax(masked_q_values)
+        self.position = allowed_moves[best_move_idx]
 
     def get_chosen_action(self):
         return self.chosen_action
@@ -27,6 +37,18 @@ class DummyAgent:
         self.agentID = uuid.uuid4()
         self.state = None
         self.position = position
+
+    def choose_action(self, allowed_moves, agent_pos):
+
+        agent_distance = [point_dist(self.position, a_pos)
+                          for a_pos in agent_pos]
+
+        closest_agent = min(agent_distance)
+        closest_pos = agent_distance.index(closest_agent)
+
+        dists = [point_dist(closest_pos, pos) if pos else -1 for pos in allowed_moves]
+        furthest_dist = max(dists)
+        self.position = allowed_moves[dists.index(furthest_dist)]
 
     def get_position(self):
         return self.position

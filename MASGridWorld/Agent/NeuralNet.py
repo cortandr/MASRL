@@ -120,7 +120,7 @@ class Brain:
 
             self.Q_values = tf.layers.dense(
                 inputs=dropout_fc_2,
-                units=5,
+                units=8,
                 activation=tf.nn.softmax,
                 name="q_values")
 

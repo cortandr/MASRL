@@ -33,6 +33,8 @@ class Environment:
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
 
+        self.allowed_moves_per_position = self.create_allowed_moves()
+
     @property
     def grid(self):
 
@@ -84,25 +86,32 @@ class Environment:
 
         return grid
 
+    def create_allowed_moves(self):
+        moves = {}
+        for row in range(self.n_rows):
+            for col in range(self.n_cols):
+                ring = [(row - 1, col - 1), (row - 1, col), (row - 1, col + 1),
+                        (row, col + 1), (row + 1, col + 1), (row + 1, col),
+                        (row + 1, col - 1), (row, col - 1)]
+                ring = map(lambda pos: pos if pos not in sum(self.obstacles, []) and \
+                                     0 <= pos[0] < self.n_rows and \
+                                     0 <= pos[1] < self.n_cols \
+                                  else None, ring)
+                moves[(row, col)] = list(ring)
+        return moves
+
     def allowed_moves(self, agent):
-        allowed = []
-
-        if agent.get_pos().x + 1 <= self.n_cols:
-            allowed.append('r ')
-
-        if agent.get_pos().x - 1 <= self.n_cols:
-            allowed.append('l')
-
-        if agent.get_pos().y + 1 <= self.n_rows:
-            allowed.append('u')
-
-        if agent.get_pos().y - 1 <= self.n_rows:
-            allowed.append('d')
-
-        return allowed
+        return self.allowed_moves_per_position[agent.get_position()]
 
     def step(self):
-        pass
+
+        for agent in self.agents:
+            allowed_moves = self.allowed_moves(agent)
+            agent.choose_action(allowed_moves)
+
+        for dummy in self.opponents:
+            allowed_moves = self.allowed_moves(dummy)
+            dummy.choose_action(allowed_moves, [a.get_position() for a in self.agents])
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
@@ -165,10 +174,8 @@ class Environment:
         :return:
         """
 
-        # TODO: avoid square shaped obstacles
-
         # Decide number of obstacles and their length
-        n_obs = int((rows + cols)//4)
+        n_obs = randint(0, int((rows + cols)//4))
         obs_length = [randint(2, int(rows//2)) for _ in range(n_obs)]
 
         # Generate all x, y combinations

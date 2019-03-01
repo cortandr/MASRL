@@ -55,7 +55,7 @@ class Viz(object):
 
 if __name__ == '__main__':
 
-    test = Environment(20, 20, 3, 3)
+    test = Environment(10, 10, 3, 3)
     colors = {
         'default': (150, 150, 150),
          0: (255, 255, 255),

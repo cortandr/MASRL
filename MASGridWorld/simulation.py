@@ -36,6 +36,7 @@ class Sim:
 
             sim_ended = False
 
+            # Get agent that is training
             training_agent = next(
                 filter(lambda ag: ag.training, self.environment.agents))
 
@@ -51,7 +52,7 @@ class Sim:
                 action = training_agent.get_chosen_action()
 
                 # Get reward
-                reward = 0
+                reward = self.get_reward()
 
                 # Get state after chosen action is applied
                 next_state = self.environment.brain_input_grid
@@ -122,6 +123,11 @@ class Sim:
             # Add loss and reward to sim metrics for later evaluation
             self.metrics["loss"].append(l)
             self.metrics["reward"].append(transition["reward"])
+
+    def get_reward(self):
+        return len(self.environment.agents) - \
+               (len(self.environment.opponents) ** 2)
+
 
 
 if __name__ == '__main__':
