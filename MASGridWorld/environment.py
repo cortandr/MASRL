@@ -1,7 +1,9 @@
 from Agent.agent import Agent, DummyAgent
+from Agent.NeuralNet import Brain
 from random import randint
 from utils import *
 import random
+import copy
 from sklearn.cluster import KMeans
 import numpy as np
 
@@ -31,6 +33,16 @@ class Environment:
                                                 )
 
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
+
+        training_net = Brain()
+        target_net = Brain()
+
+        for a in self.agents:
+            if a.training:
+                a.brain = training_net
+            else:
+                a.brain = target_net
+
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
 
         self.allowed_moves_per_position = self.create_allowed_moves()
@@ -67,21 +79,21 @@ class Environment:
         # Background channel
         for a in sum(self.obstacles, []):
             x, y = a
-            grid[x][y][0] = 1
+            grid[x][y][0] = 1.0
 
         # Opponents channel
         for a in self.opponents:
             x, y = a.get_position()
-            grid[x][y][1] = 1
+            grid[x][y][1] = 1.0
 
         # Allies channel
         for a in self.agents:
             x, y = a.get_position()
-            grid[x][y][2] = 1
+            grid[x][y][2] = 1.0
 
         # Self channel (On training agent)
         training_agent = next(filter(lambda agent: agent.training, self.agents))
-        x, y = training_agent.training
+        x, y = training_agent.get_position()
         grid[x][y][3] = 1
 
         return grid
@@ -103,15 +115,19 @@ class Environment:
     def allowed_moves(self, agent):
         return self.allowed_moves_per_position[agent.get_position()]
 
-    def step(self):
+    def step(self, state):
+
+        state_tensor = np.array([state])
 
         for agent in self.agents:
             allowed_moves = self.allowed_moves(agent)
-            agent.choose_action(allowed_moves)
+            agent.choose_action(allowed_moves, state_tensor)
 
         for dummy in self.opponents:
             allowed_moves = self.allowed_moves(dummy)
-            dummy.choose_action(allowed_moves, [a.get_position() for a in self.agents])
+            dummy.choose_action(
+                allowed_moves,
+                [a.get_position() for a in self.agents])
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """

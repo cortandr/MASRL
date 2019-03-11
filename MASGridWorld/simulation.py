@@ -46,7 +46,7 @@ class Sim:
                 curr_state = self.environment.brain_input_grid
 
                 # Apply step in Environment
-                self.environment.step()
+                self.environment.step(curr_state.copy())
 
                 # Get agent chosen action
                 action = training_agent.get_chosen_action()
@@ -129,6 +129,6 @@ class Sim:
                (len(self.environment.opponents) ** 2)
 
 
-
 if __name__ == '__main__':
-    print()
+    sim = Sim(5, 5, (10, 10), 10, 32)
+    sim.run()

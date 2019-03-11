@@ -21,6 +21,7 @@ class Agent:
         masked_q_values = q_values * moves_mask
         best_move_idx = np.argmax(masked_q_values)
         self.position = allowed_moves[best_move_idx]
+        self.chosen_action = best_move_idx
 
     def get_chosen_action(self):
         return self.chosen_action
