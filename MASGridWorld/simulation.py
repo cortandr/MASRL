@@ -116,7 +116,7 @@ class Sim:
                 [target_agent.brain.loss, target_agent.brain.train_op],
                 feed_dict={
                     target_agent.brain.input_layer: transition["state"],
-                    target_agent.brain.target_Q: target,
+                    target_agent.brain.target_Q: target_q,
                     target_agent.brain.Q_values: q
                 })
 
