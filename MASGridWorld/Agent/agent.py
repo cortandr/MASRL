@@ -39,15 +39,20 @@ class DummyAgent:
         self.state = None
         self.position = position
 
-    def choose_action(self, allowed_moves, agent_pos):
+    def choose_action(self, allowed_moves, agents):
 
+        # Get agents positions
+        agent_pos = [a.get_position() for a in agents]
+
+        # Get agents distances from current dummy agent
         agent_distance = [point_dist(self.position, a_pos)
                           for a_pos in agent_pos]
 
         closest_agent = min(agent_distance)
         closest_pos = agent_distance.index(closest_agent)
 
-        dists = [point_dist(closest_pos, pos) if pos else -1 for pos in allowed_moves]
+        dists = [point_dist(agents[closest_pos].get_position(), pos)
+                 if pos else -1 for pos in allowed_moves]
         furthest_dist = max(dists)
         self.position = allowed_moves[dists.index(furthest_dist)]
 

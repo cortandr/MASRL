@@ -127,7 +127,7 @@ class Environment:
             allowed_moves = self.allowed_moves(dummy)
             dummy.choose_action(
                 allowed_moves,
-                [a.get_position() for a in self.agents])
+                self.agents)
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
