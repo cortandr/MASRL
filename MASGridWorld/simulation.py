@@ -2,13 +2,16 @@ import numpy as np
 from environment import Environment
 import random
 import copy
-from Agent.config import *
 
 
 class Sim:
 
     def __init__(self, allies, opponents, world_size, n_games,
                  train_batch_size):
+        self.allies = allies
+        self.opponents = opponents
+        self.world_size = world_size
+        self.moves_limit = 20
         self.experience_replay = list()
         self.training_batch_size = train_batch_size
         self.n_games = n_games
@@ -34,13 +37,13 @@ class Sim:
 
         while sim < self.n_games:
 
-            sim_ended = False
+            sim_moves = 0
 
             # Get agent that is training
             training_agent = next(
                 filter(lambda ag: ag.training, self.environment.agents))
 
-            while not sim_ended:
+            while sim_moves < sim_moves:
 
                 # Current state
                 curr_state = self.environment.brain_input_grid
@@ -64,6 +67,23 @@ class Sim:
                     "next_state": next_state,
                     "reward": reward,
                 })
+
+                sim_moves += 1
+
+            # Train every 2 simulations
+            if (sim+1) % 2 == 0:
+                self.train_ally()
+
+            # Update training net every 10 simulations
+            if (sim+1) % 10 == 0:
+                self.update_target_net()
+
+            self.environment.reset()
+
+            sim += 1
+
+    def update_target_net(self):
+        self.environment.target_net = copy.deepcopy(self.environment.training_net)
 
     def train_ally(self):
         """
@@ -109,7 +129,7 @@ class Sim:
 
             # Update Q values vector with target value
             target_q = copy.deepcopy(q)
-            target_q[ACTIONS[transition["action"]]] = target
+            target_q[transition["action"]] = target
 
             # Train neural net
             l, _ = target_agent.sess.run(

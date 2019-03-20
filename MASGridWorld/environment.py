@@ -23,6 +23,8 @@ class Environment:
     def __init__(self, n_rows, n_cols, n_agents, n_opponents):
         self.n_rows = n_rows
         self.n_cols = n_cols
+        self.n_agents = n_agents
+        self.n_opponents = n_opponents
 
         self.obstacles = self.generate_random_obstacles(n_rows, n_cols)
         team_agents, team_opponents = self.generate_random_agents(
@@ -34,18 +36,20 @@ class Environment:
 
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
 
-        training_net = Brain()
-        target_net = Brain()
+        self.training_net = Brain()
+        self.target_net = Brain()
 
         for a in self.agents:
             if a.training:
-                a.brain = training_net
+                a.brain = self.training_net
             else:
-                a.brain = target_net
+                a.brain = self.target_net
 
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
 
         self.allowed_moves_per_position = self.create_allowed_moves()
+
+
 
     @property
     def grid(self):
@@ -128,6 +132,13 @@ class Environment:
             dummy.choose_action(
                 allowed_moves,
                 self.agents)
+
+        # Check for overlapping opponents
+        agents = [a.get_position() for a in self.agents]
+        eaten_opponents = [op.agentID for op in self.opponents if op.get_position() in agents]
+
+        # Delete eaten opponents
+        self.opponents = list(filter(lambda oppo: oppo.agentID not in eaten_opponents, self.opponents))
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
@@ -224,6 +235,19 @@ class Environment:
             obs_list.append(obs)
 
         return obs_list
+
+    def reset(self):
+        self.obstacles = self.generate_random_obstacles(self.n_rows, self.n_cols)
+        team_agents, team_opponents = self.generate_random_agents(
+            n_agents=self.n_agents,
+            n_opponents=self.n_opponents,
+            rows=self.n_rows,
+            cols=self.n_cols
+        )
+
+        self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
+        self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
+        self.allowed_moves_per_position = self.create_allowed_moves()
 
 
 if __name__ == '__main__':
