@@ -43,7 +43,7 @@ class Sim:
             training_agent = next(
                 filter(lambda ag: ag.training, self.environment.agents))
 
-            while sim_moves < self.moves_limit:
+            while sim_moves < self.moves_limit or not self.environment.is_over():
 
                 # Current state
                 curr_state = self.environment.brain_input_grid

@@ -249,6 +249,9 @@ class Environment:
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
         self.allowed_moves_per_position = self.create_allowed_moves()
 
+    def is_over(self):
+        return len(self.opponents) == 0
+
 
 if __name__ == '__main__':
     test = Environment(10, 10, 3, 3)
