@@ -1,24 +1,32 @@
 from environment import Environment
 import numpy as np
 import cv2
+from PIL import Image
 
 
 class Viz(object):
 
-    def __init__(self, img_size, colors):
+    def __init__(self, img_size, colors=None):
         """
         :param img_size: Size of image side (in pixels).
         :param colors: Dict with keys the matrix values and value the color
                 in (B,G,R). Sould contain field "default" for unused cell.
         """
         self.img_size = img_size
-        self.colors = colors
+        if colors:
+            self.colors = colors
+        else:
+            self.colors = {'default': (150, 150, 150),
+                           0: (255, 255, 255),
+                           1: (  0, 255,   0),
+                           2: (255,   0,   0),
+                           -1: (  0,   0,   0)}
 
     def single_frame(self, environment):
         """
         Creates a single image from the environment.
         :param environment: Enviroment object to visualize.
-        :return: Nothing
+        :return: frame
         """
         if not isinstance(environment, Environment):
             print('An Environment was not provided')
@@ -49,18 +57,19 @@ class Viz(object):
                               self.colors[env_matrix[r][c]],
                               -1)
 
-        cv2.imshow('Env', img)
-        cv2.waitKey(0)
+        return img
+
+    @staticmethod
+    def create_gif(list_frames, name, duration=500, loop=1):
+        frames = [Image.fromarray(img) for img in list_frames]
+        frames[0].save(name + '.gif', format='GIF', append_images=frames[1:],
+                       save_all=True, duration=duration, loop=loop)
 
 
 if __name__ == '__main__':
 
-    test = Environment(10, 10, 3, 3)
-    colors = {
-        'default': (150, 150, 150),
-         0: (255, 255, 255),
-         1: (  0, 255,   0),
-         2: (  0,   0, 255),
-        -1: (  0,   0,   0)}
-    viz = Viz(600, colors)
-    viz.single_frame(test)
+    #test = Environment(10, 10, 3, 3)
+    viz = Viz(600)
+    multiple_envs = [Environment(10,10,3,3) for i in range(15)]
+    frames = [viz.single_frame(env) for env in multiple_envs]
+    viz.create_gif(frames, 'test_gif')
