@@ -145,8 +145,44 @@ class Sim:
             self.metrics["reward"].append(transition["reward"])
 
     def get_reward(self):
-        return len(self.environment.agents) - \
-               (len(self.environment.opponents) ** 2)
+        # Reward 1 -> number of agents
+        reward1 = len(self.environment.agents) - \
+                  (len(self.environment.opponents) ** 2)
+
+        bottom_limit = self.allies - (self.opponents ** 2)
+        # top limit is self.allies
+        reward_range = self.allies - bottom_limit
+        shift = (reward_range / 2) - self.allies
+        reward1 = (reward1 + shift) / (reward_range / 2)
+
+        # Reward 2 -> board coverage
+        def floodfill(agent, env):
+            matrix = np.zeros((env.n_rows, env.n_cols))
+            open_list = [agent.get_position()]
+            done_list = list()
+            while len(open_list) > 0:
+                current = open_list.pop()
+                done_list.append(current)
+                adjacent_pos = env.allowed_moves()
+                for p in adjacent_pos:
+                    if p not in done_list:
+                        matrix[p[0]][p[1]] = matrix[current[0]][current[1]] + 1
+                        open_list.append(p)
+            return matrix
+
+        distances_agents = [floodfill(a, self.environment)
+                              for a in self.environment.agents]
+        distances_opponents = [floodfill(a, self.environment)
+                                 for a in self.environment.opponents]
+
+        distances_agents = np.array(distances_agents).min(axis=0)
+        distances_opponents = np.array(distances_opponents).min(axis=0)
+
+        combined = distances_agent - distances_opponents
+        reward2 = sum((combined < 0).astype(int)) - sum((combined > 0).astype(int))
+        reward2 = reward2 / (env.n_rows * env.n_cols)
+
+        return (reward1 + reward2) / 2
 
 
 if __name__ == '__main__':

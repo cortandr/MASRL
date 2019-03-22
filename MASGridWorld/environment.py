@@ -112,6 +112,8 @@ class Environment:
         return moves
 
     def allowed_moves(self, agent):
+        if isinstance(agent, tuple):
+            return self.allowed_moves_per_position[agent]
         return self.allowed_moves_per_position[agent.get_position()]
 
     def step(self, state):
