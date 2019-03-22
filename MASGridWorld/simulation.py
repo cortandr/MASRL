@@ -2,12 +2,13 @@ import numpy as np
 from environment import Environment
 import random
 import copy
+from viz import Viz
 
 
 class Sim:
 
     def __init__(self, allies, opponents, world_size, n_games,
-                 train_batch_size):
+                 train_batch_size, viz=None, viz_execution=None):
         self.allies = allies
         self.opponents = opponents
         self.world_size = world_size
@@ -26,6 +27,9 @@ class Sim:
             "loss": list()
         }
 
+        self.viz = viz
+        self.viz_execution = viz_execution
+
     def run(self):
         """
         Runs general simulation and takes care of experience table population
@@ -43,7 +47,7 @@ class Sim:
             training_agent = next(
                 filter(lambda ag: ag.training, self.environment.agents))
 
-            while sim_moves < self.moves_limit or not self.environment.is_over():
+            while sim_moves < self.moves_limit and not self.environment.is_over():
 
                 # Current state
                 curr_state = self.environment.brain_input_grid
@@ -78,8 +82,20 @@ class Sim:
             if (sim+1) % 10 == 0:
                 self.update_target_net()
 
-            self.environment.reset()
+            if self.viz and self.viz_execution and self.viz_execution(sim):
+                self.environment.reset()
+                sim_moves = 0
+                env_seq = [self.environment]
+                while sim_moves < self.moves_limit and not self.environment.is_over():
+                    curr_state = self.environment.brain_input_grid
+                    self.environment.step(curr_state.copy())
+                    env_seq.append(self.environment)
+                    sim_moves += 1
+                frames = [self.viz.single_frame(env) for env in env_seq]
+                viz.create_gif(frames,
+                               name='simulation_%d' % sim)
 
+            self.environment.reset()
             sim += 1
 
     def update_target_net(self):
@@ -186,5 +202,8 @@ class Sim:
 
 
 if __name__ == '__main__':
-    sim = Sim(5, 5, (10, 10), 10, 32)
+    viz = Viz(600, save_dir='gifs/')
+    def viz_execution(sim_number):
+        return sim_number in [5, 15, 30, 50, 100]
+    sim = Sim(5, 5, (10, 10), 10, 32, viz, viz_execution)
     sim.run()

@@ -6,7 +6,7 @@ from PIL import Image
 
 class Viz(object):
 
-    def __init__(self, img_size, colors=None):
+    def __init__(self, img_size, colors=None, save_dir=None):
         """
         :param img_size: Size of image side (in pixels).
         :param colors: Dict with keys the matrix values and value the color
@@ -21,6 +21,7 @@ class Viz(object):
                            1: (  0, 255,   0),
                            2: (255,   0,   0),
                            -1: (  0,   0,   0)}
+        self.save_dir = save_dir
 
     def single_frame(self, environment):
         """
@@ -59,8 +60,11 @@ class Viz(object):
 
         return img
 
-    @staticmethod
-    def create_gif(list_frames, name, duration=500, loop=1):
+    def create_gif(self, list_frames, name, duration=500, loop=1):
+        if self.save_dir is not None and not os.path.exist(self.save_dir):
+            os.mkdirs(self.save_dir)
+            if not self.save_dir.endswith('/'): self.save_dir += '/'
+            name = self.save_dir + name
         frames = [Image.fromarray(img) for img in list_frames]
         frames[0].save(name + '.gif', format='GIF', append_images=frames[1:],
                        save_all=True, duration=duration, loop=loop)
