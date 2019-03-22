@@ -95,11 +95,6 @@ class Environment:
             x, y = a.get_position()
             grid[x][y][2] = 1.0
 
-        # Self channel (On training agent)
-        training_agent = next(filter(lambda agent: agent.training, self.agents))
-        x, y = training_agent.get_position()
-        grid[x][y][3] = 1
-
         return grid
 
     def create_allowed_moves(self):
@@ -123,15 +118,18 @@ class Environment:
 
         state_tensor = np.array([state])
 
-        for agent in self.agents:
-            allowed_moves = self.allowed_moves(agent)
-            agent.choose_action(allowed_moves, state_tensor)
-
         for dummy in self.opponents:
             allowed_moves = self.allowed_moves(dummy)
             dummy.choose_action(
                 allowed_moves,
                 self.agents)
+
+        for agent in self.agents:
+            allowed_moves = self.allowed_moves(agent)
+            temp_state_tensor = copy.deepcopy(state_tensor)
+            x, y = agent.get_position()
+            temp_state_tensor[0][x][y][3] = 1
+            agent.choose_action(allowed_moves, temp_state_tensor)
 
         # Check for overlapping opponents
         agents = [a.get_position() for a in self.agents]
