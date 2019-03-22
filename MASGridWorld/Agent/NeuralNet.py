@@ -1,5 +1,4 @@
 import tensorflow as tf
-from keras.layers import Dense
 import numpy as np
 import random
 
@@ -127,7 +126,7 @@ class Brain:
 
             self.Q_values = tf.keras.layers.Dense(
                 units=8,
-                activation=tf.nn.softmax,
+                activation=tf.nn.tanh,
                 name="q_values")(dropout_fc_2)
 
             # Calculate Loss
@@ -147,4 +146,3 @@ class Brain:
 
     def load_model(self, path):
         self.saver.restore(self.sess, path)
-

@@ -177,9 +177,9 @@ class Sim:
             open_list = [agent.get_position()]
             done_list = list()
             while len(open_list) > 0:
-                current = open_list.pop()
+                current = open_list.pop(0)
                 done_list.append(current)
-                adjacent_pos = env.allowed_moves()
+                adjacent_pos = env.allowed_moves(agent)
                 for p in adjacent_pos:
                     if p not in done_list:
                         matrix[p[0]][p[1]] = matrix[current[0]][current[1]] + 1
@@ -187,23 +187,26 @@ class Sim:
             return matrix
 
         distances_agents = [floodfill(a, self.environment)
-                              for a in self.environment.agents]
+                            for a in self.environment.agents]
         distances_opponents = [floodfill(a, self.environment)
-                                 for a in self.environment.opponents]
+                               for a in self.environment.opponents]
 
         distances_agents = np.array(distances_agents).min(axis=0)
         distances_opponents = np.array(distances_opponents).min(axis=0)
 
-        combined = distances_agent - distances_opponents
+        combined = distances_agents - distances_opponents
         reward2 = sum((combined < 0).astype(int)) - sum((combined > 0).astype(int))
-        reward2 = reward2 / (env.n_rows * env.n_cols)
+        reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
 
         return (reward1 + reward2) / 2
 
 
 if __name__ == '__main__':
+
     viz = Viz(600, save_dir='gifs/')
+
     def viz_execution(sim_number):
         return sim_number in [5, 15, 30, 50, 100]
+
     sim = Sim(5, 5, (10, 10), 10, 32, viz, viz_execution)
     sim.run()
