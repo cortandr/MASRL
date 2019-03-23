@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 import random
-import os
 
 
 class Brain:
@@ -142,8 +141,6 @@ class Brain:
             self.sess.run(init)
 
     def save_model(self, path, name):
-        if not os.path.exists(path):
-            os.mkdirs(path)
         p = self.saver.save(self.sess, (path + "/model_" + name))
         return p
 

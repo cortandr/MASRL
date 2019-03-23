@@ -62,8 +62,9 @@ class Viz(object):
         return img
 
     def create_gif(self, list_frames, name, duration=500, loop=1):
-        if self.save_dir is not None and not os.path.exist(self.save_dir):
-            os.mkdirs(self.save_dir)
+        if self.save_dir is not None:
+            if not os.path.exists(self.save_dir):
+                os.makedirs(self.save_dir)
             if not self.save_dir.endswith('/'): self.save_dir += '/'
             name = self.save_dir + name
         frames = [Image.fromarray(img) for img in list_frames]

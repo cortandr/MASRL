@@ -3,6 +3,8 @@ from environment import Environment
 import random
 import copy
 from viz import Viz
+import os
+import json
 
 
 class Sim:
@@ -86,9 +88,9 @@ class Sim:
 
                 # Store transition in replay table
                 self.experience_replay.append({
-                    "state": curr_state,
+                    "state": np.array([curr_state]),
                     "action": action,
-                    "next_state": next_state,
+                    "next_state": np.array([next_state]),
                     "reward": reward,
                 })
 
@@ -117,7 +119,14 @@ class Sim:
                 viz.create_gif(frames, name='simulation_%d' % sim)
 
             if self.train_saving is not None and self.train_saving(sim):
-                training_agent.brain.save_model('Models/', str(sim))
+                save_path = 'Models/'
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+
+                metrics_json = json.dumps(self.metrics)
+                with open(save_path + 'metrics_' + str(sim) + '.json', "w") as f:
+                    f.write(metrics_json)
+                training_agent.brain.save_model(save_path, str(sim))
 
             self.environment.reset()
 
@@ -130,6 +139,9 @@ class Sim:
         the agent's brain NN
         :return:
         """
+        if len(self.experience_replay) < self.training_batch_size:
+            return
+
         # Sample batch fro replay memory
         mini_batch = random.sample(
             self.experience_replay,
@@ -147,7 +159,7 @@ class Sim:
         for transition in mini_batch:
 
             # Compute Q value of current training network
-            q = training_agent.sess.run(
+            q = training_agent.brain.sess.run(
                 training_agent.brain.Q_values,
                 feed_dict={training_agent.brain.input_layer: transition["state"]})
 
@@ -157,7 +169,7 @@ class Sim:
                 target = transition["reward"]
             else:
                 # Compute Q values on next state
-                q_next = target_agent.sess.run(
+                q_next = target_agent.brain.sess.run(
                     target_agent.brain.Q_values,
                     feed_dict={
                         target_agent.brain.input_layer: transition["next_state"]
@@ -168,10 +180,10 @@ class Sim:
 
             # Update Q values vector with target value
             target_q = copy.deepcopy(q)
-            target_q[transition["action"]] = target
+            target_q[0][transition["action"]] = target
 
             # Train neural net
-            l, _ = target_agent.sess.run(
+            l, _ = target_agent.brain.sess.run(
                 [target_agent.brain.loss, target_agent.brain.train_op],
                 feed_dict={
                     target_agent.brain.input_layer: transition["state"],
@@ -206,10 +218,11 @@ class Sim:
             done_list = [agent.get_position()]
             while len(open_list) > 0:
                 current = open_list.pop(0)
-                adjacent_pos = env.allowed_moves(agent)
+                adjacent_pos = env.allowed_moves(current)
                 current_value = matrix[current[0]][current[1]]
                 for p in adjacent_pos:
-                    if p not in done_list:
+                    if p is not None and p not in done_list:
+                        # p can be None it is an obstacle or outside bounds
                         matrix[p[0]][p[1]] = current_value + 1
                         open_list.append(p)
                         done_list.append(p)
@@ -221,6 +234,11 @@ class Sim:
         distances_opponents = [BFS(a, self.environment)
                                for a in self.environment.opponents]
 
+        # In case there is no more opponents the list above is empty
+        if not distances_opponents:
+            distances_opponents = np.zeros((self.environment.n_rows,
+                                            self.environment.n_cols))
+
         # Calculate the minimum distance to the cells for the whole teams
         distances_agents = np.array(distances_agents).min(axis=0)
         distances_opponents = np.array(distances_opponents).min(axis=0)
@@ -228,7 +246,7 @@ class Sim:
         # Combined has a negative value for cells closer to allies and positive
         # for cells closer to opponents
         combined = distances_agents - distances_opponents
-        reward2 = sum((combined < 0).astype(int)) - sum((combined > 0).astype(int))
+        reward2 = sum(sum((combined < 0).astype(int))) - sum(sum((combined > 0).astype(int)))
         reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
 
         return (reward1 + reward2) / 2

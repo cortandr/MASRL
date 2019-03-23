@@ -16,10 +16,10 @@ class Agent:
             self.brain.Q_values,
             feed_dict={self.brain.input_layer: state})
 
-        moves_mask = np.array([1 if pos else 0 for pos in allowed_moves])
+        moves_mask = np.array([1 if pos else np.nan for pos in allowed_moves])
 
         masked_q_values = q_values * moves_mask
-        best_move_idx = np.argmax(masked_q_values)
+        best_move_idx = np.nanargmax(masked_q_values)
         self.position = allowed_moves[best_move_idx]
         self.chosen_action = best_move_idx
 

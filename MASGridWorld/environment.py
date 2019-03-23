@@ -245,7 +245,16 @@ class Environment:
             cols=self.n_cols
         )
 
+        temp_train_brains = [agent.brain for agent in self.agents if agent.training]
+        temp_target_brain = [agent.brain for agent in self.agents if not agent.training]
+
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
+        for agent in self.agents:
+            if agent.training:
+                agent.brain = temp_train_brains[0]
+            else:
+                agent.brain = temp_target_brain.pop(0)
+
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
         self.allowed_moves_per_position = self.create_allowed_moves()
 
