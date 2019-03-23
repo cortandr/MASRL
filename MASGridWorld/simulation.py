@@ -172,28 +172,38 @@ class Sim:
         reward1 = (reward1 + shift) / (reward_range / 2)
 
         # Reward 2 -> board coverage
-        def floodfill(agent, env):
+        def BFS(agent, env):
+            """
+            Calculates breadth first search starting on the agent position,
+            giving the number of moves / distance to every cell.
+            Obstacles will always have distance 0.
+            """
             matrix = np.zeros((env.n_rows, env.n_cols))
             open_list = [agent.get_position()]
-            done_list = list()
+            done_list = [agent.get_position()]
             while len(open_list) > 0:
                 current = open_list.pop(0)
-                done_list.append(current)
                 adjacent_pos = env.allowed_moves(agent)
+                current_value = matrix[current[0]][current[1]]
                 for p in adjacent_pos:
                     if p not in done_list:
-                        matrix[p[0]][p[1]] = matrix[current[0]][current[1]] + 1
+                        matrix[p[0]][p[1]] = current_value + 1
                         open_list.append(p)
+                        done_list.append(p)
             return matrix
 
-        distances_agents = [floodfill(a, self.environment)
+        # Do BFS for ally agents and opponents
+        distances_agents = [BFS(a, self.environment)
                             for a in self.environment.agents]
-        distances_opponents = [floodfill(a, self.environment)
+        distances_opponents = [BFS(a, self.environment)
                                for a in self.environment.opponents]
 
+        # Calculate the minimum distance to the cells for the whole teams
         distances_agents = np.array(distances_agents).min(axis=0)
         distances_opponents = np.array(distances_opponents).min(axis=0)
 
+        # Combined has a negative value for cells closer to allies and positive
+        # for cells closer to opponents
         combined = distances_agents - distances_opponents
         reward2 = sum((combined < 0).astype(int)) - sum((combined > 0).astype(int))
         reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
