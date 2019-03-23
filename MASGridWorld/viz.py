@@ -2,6 +2,7 @@ from environment import Environment
 import numpy as np
 import cv2
 from PIL import Image
+import os
 
 
 class Viz(object):
@@ -17,9 +18,9 @@ class Viz(object):
             self.colors = colors
         else:
             self.colors = {'default': (150, 150, 150),
-                           0: (255, 255, 255),
-                           1: (  0, 255,   0),
-                           2: (255,   0,   0),
+                            0: (255, 255, 255),
+                            1: (  0, 255,   0),
+                            2: (255,   0,   0),
                            -1: (  0,   0,   0)}
         self.save_dir = save_dir
 

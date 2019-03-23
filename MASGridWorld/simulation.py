@@ -8,14 +8,28 @@ from viz import Viz
 class Sim:
 
     def __init__(self, allies, opponents, world_size, n_games,
-                 train_batch_size, viz=None, viz_execution=None):
+                 train_batch_size, replay_mem_limit,
+                 viz=None, viz_execution=None, train_saving=None):
+        """
+
+        :param allies: number of allie
+        :param opponents: number of opponents
+        :param world_size: tuple (n_rows, n_cols)
+        :param n_games: number of games to play
+        :param train_batch_size: size of training batch
+        :param replay_mem_limit: replay memory size limit
+        :param viz: Visualization object
+        :param viz_execution: Function to decide when to run visualization (returns bool)
+        :param train_saving: Function to decide when to save the model (returns bool)
+        """
         self.allies = allies
         self.opponents = opponents
         self.world_size = world_size
-        self.moves_limit = 20
+        self.moves_limit = 15
         self.experience_replay = list()
         self.training_batch_size = train_batch_size
         self.n_games = n_games
+        self.replay_mem_limit = replay_mem_limit
         self.environment = Environment(
             n_rows=world_size[0],
             n_cols=world_size[1],
@@ -29,6 +43,7 @@ class Sim:
 
         self.viz = viz
         self.viz_execution = viz_execution
+        self.train_saving = train_saving
 
     def run(self):
         """
@@ -42,6 +57,11 @@ class Sim:
         while sim < self.n_games:
 
             sim_moves = 0
+
+            # Prune replay memory by 1/5 if over limit size
+            if len(self.experience_replay) > self.replay_mem_limit:
+                prune = self.replay_mem_limit // 5
+                self.experience_replay = self.experience_replay[prune:]
 
             # Get agent that is training
             training_agent = next(
@@ -74,12 +94,14 @@ class Sim:
 
                 sim_moves += 1
 
+            sim += 1
+
             # Train every 2 simulations
-            if (sim+1) % 2 == 0:
+            if sim % 2 == 0:
                 self.train_ally()
 
             # Update training net every 10 simulations
-            if (sim+1) % 10 == 0:
+            if sim % 10 == 0:
                 self.update_target_net()
 
             if self.viz and self.viz_execution and self.viz_execution(sim):
@@ -92,11 +114,12 @@ class Sim:
                     env_seq.append(self.environment)
                     sim_moves += 1
                 frames = [self.viz.single_frame(env) for env in env_seq]
-                viz.create_gif(frames,
-                               name='simulation_%d' % sim)
+                viz.create_gif(frames, name='simulation_%d' % sim)
+
+            if self.train_saving is not None and self.train_saving(sim):
+                training_agent.brain.save_model('Models/', str(sim))
 
             self.environment.reset()
-            sim += 1
 
     def update_target_net(self):
         self.environment.target_net = copy.deepcopy(self.environment.training_net)
@@ -216,7 +239,8 @@ if __name__ == '__main__':
     viz = Viz(600, save_dir='gifs/')
 
     def viz_execution(sim_number):
-        return sim_number in [5, 15, 30, 50, 100]
+        return sim_number % 500 == 0 or sim_number == 1
 
-    sim = Sim(5, 5, (10, 10), 10, 32, viz, viz_execution)
+    sim = Sim(5, 5, (10, 10), 10, 32, 50000,
+              viz=viz, viz_execution=viz_execution, train_saving=viz_execution)
     sim.run()
