@@ -245,7 +245,7 @@ class Sim:
         reward2 = sum(sum((combined < 0).astype(int))) - sum(sum((combined > 0).astype(int)))
         reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
 
-        return (0.6*reward1 + 0.4*reward2) / 2
+        return 0.6*reward1 + 0.4*reward2
 
 
 if __name__ == '__main__':
