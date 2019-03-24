@@ -132,9 +132,7 @@ class Sim:
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
 
-                # metrics_json = json.dumps(self.metrics)
-                with open(save_path + 'metrics_' + str(sim) + '.pkl', "wb") as f:
-                    # f.write(metrics_json)
+                with open(save_path + 'metrics' + '.pkl', "wb") as f:
                     pickle.dump(self.metrics, f)
                 # Save model
                 training_agent.brain.save_model(save_path, str(sim))
@@ -163,6 +161,9 @@ class Sim:
 
         training_net = self.environment.training_net
         target_net = self.environment.target_net
+
+        batch_loss = list()
+        batch_reward = list()
 
         for transition in mini_batch:
 
@@ -204,8 +205,11 @@ class Sim:
                 })
 
             # Add loss and reward to sim metrics for later evaluation
-            self.metrics["loss"].append(l)
-            self.metrics["reward"].append(transition["reward"])
+            batch_loss.append(l)
+            batch_reward.append(transition["reward"])
+
+        self.metrics["loss"].append(np.array(batch_loss).mean())
+        self.metrics["reward"].append(np.array(batch_reward).mean())
 
     def get_reward(self):
         # Reward 1 -> number of agents
@@ -248,7 +252,7 @@ if __name__ == '__main__':
     viz = Viz(600, save_dir='gifs/')
 
     def viz_execution(sim_number):
-        return sim_number % 50 == 0 or sim_number == 1
+        return sim_number % 250 == 0 or sim_number == 1
 
     sim = Sim(5, 5, (10, 10), 100000000, 32, 50000,
               viz=viz, viz_execution=viz_execution, train_saving=viz_execution)
