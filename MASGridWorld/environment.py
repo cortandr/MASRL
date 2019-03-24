@@ -135,10 +135,10 @@ class Environment:
 
         # Check for overlapping opponents
         agents = [a.get_position() for a in self.agents]
-        eaten_opponents = [op.agentID for op in self.opponents if op.get_position() in agents]
 
         # Delete eaten opponents
-        self.opponents = list(filter(lambda oppo: oppo.agentID not in eaten_opponents, self.opponents))
+        self.opponents = [oppo for oppo in self.opponents
+                          if oppo.get_position() not in agents]
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
@@ -157,9 +157,7 @@ class Environment:
         ag_pos = list()
 
         # Generate all x, y combinations
-        x_axis = [i for i in range(0, rows)]
-        y_axis = [j for j in range(0, cols)]
-        combos = [(x, y) for x in x_axis for y in y_axis]
+        combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
 
         obs_list = sum(self.obstacles, [])
 
@@ -192,8 +190,7 @@ class Environment:
 
         return team_agents, team_opponents
 
-    @staticmethod
-    def generate_random_obstacles(rows, cols):
+    def generate_random_obstacles(self, rows, cols):
         """
         Generate random obstacles based on grid dimensions
         :param rows: x dimension  of grid
@@ -206,35 +203,42 @@ class Environment:
         obs_length = [randint(2, int(rows//2)) for _ in range(n_obs)]
 
         # Generate all x, y combinations
-        x_axis = [i for i in range(0, rows)]
-        y_axis = [j for j in range(0, cols)]
-        combos = [(x, y) for x in x_axis for y in y_axis]
+        combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
 
-        obs_list = list()
+        while True:
 
-        for _ in range(n_obs):
-            obs = list()
-            # Random obstacle length
-            length = random.choice(obs_length)
-            del obs_length[obs_length.index(length)]
+            obs_list = list()
 
-            # Random position from grid
-            choice_pos = random.choice(combos)
-            obs.append(choice_pos)
-            del combos[combos.index(choice_pos)]
+            for _ in range(n_obs):
+                obs = list()
+                # Random obstacle length
+                length = random.choice(obs_length)
+                del obs_length[obs_length.index(length)]
 
-            for _ in range(length-1):
-                last_x, last_y = obs[-1]
-                adj_cells = adjacent_cells(last_x, last_y, rows, cols, obs, combos)
-                if not adj_cells:
-                    continue
-                next_cell = random.choice(adj_cells)
-                obs.append(next_cell)
-                del combos[combos.index(next_cell)]
+                # Random position from grid
+                choice_pos = random.choice(combos)
+                obs.append(choice_pos)
+                del combos[combos.index(choice_pos)]
 
-            obs_list.append(obs)
+                for _ in range(length - 1):
+                    last_x, last_y = obs[-1]
+                    adj_cells = adjacent_cells(last_x, last_y, rows, cols, obs,
+                                               combos)
+                    if not adj_cells:
+                        continue
+                    next_cell = random.choice(adj_cells)
+                    obs.append(next_cell)
+                    del combos[combos.index(next_cell)]
 
-        return obs_list
+                obs_list.append(obs)
+
+            # Check validity of obs positions / avoid trapping agents
+            start_pos = random.choice(combos)
+            reachability_matrix = bfs(start_pos, self)
+            valid_obs = sum(sum((reachability_matrix > 0).astype(int))) + 1 + len(sum(obs_list, []))
+            valid_obs = valid_obs == self.n_rows * self.n_cols
+
+            if valid_obs: return obs_list
 
     def reset(self):
         self.obstacles = self.generate_random_obstacles(self.n_rows, self.n_cols)

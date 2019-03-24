@@ -2,6 +2,7 @@ import numpy as np
 from environment import Environment
 import random
 import copy
+from utils import bfs
 from viz import Viz
 import os
 import json
@@ -207,31 +208,10 @@ class Sim:
         reward1 = (reward1 + shift) / (reward_range / 2)
 
         # Reward 2 -> board coverage
-        def BFS(agent, env):
-            """
-            Calculates breadth first search starting on the agent position,
-            giving the number of moves / distance to every cell.
-            Obstacles will always have distance 0.
-            """
-            matrix = np.zeros((env.n_rows, env.n_cols))
-            open_list = [agent.get_position()]
-            done_list = [agent.get_position()]
-            while len(open_list) > 0:
-                current = open_list.pop(0)
-                adjacent_pos = env.allowed_moves(current)
-                current_value = matrix[current[0]][current[1]]
-                for p in adjacent_pos:
-                    if p is not None and p not in done_list:
-                        # p can be None it is an obstacle or outside bounds
-                        matrix[p[0]][p[1]] = current_value + 1
-                        open_list.append(p)
-                        done_list.append(p)
-            return matrix
-
         # Do BFS for ally agents and opponents
-        distances_agents = [BFS(a, self.environment)
+        distances_agents = [bfs(a, self.environment)
                             for a in self.environment.agents]
-        distances_opponents = [BFS(a, self.environment)
+        distances_opponents = [bfs(a, self.environment)
                                for a in self.environment.opponents]
 
         # In case there is no more opponents the list above is empty
