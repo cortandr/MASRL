@@ -16,7 +16,6 @@ class Brain:
         self.lr_decay = decay
         self.exploration_rate = exploration_rate
         self.discount_rate = discount_rate
-        self.optimizer = None
         self.loss = None
         self.train_op = None
         self.saver = None
@@ -133,8 +132,17 @@ class Brain:
 
             # Calculate Loss
             self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
-            self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-            self.train_op = self.optimizer.minimize(loss=self.loss)
+            global_step = tf.Variable(0, trainable=False)
+            learning_rate = tf.train.exponential_decay(
+                learning_rate=0.01,
+                global_step=0,
+                decay_steps=100000,
+                decay_rate=96,
+                staircase=True)
+
+            # Passing global_step to minimize() will increment it at each step.
+            self.train_op = tf.train.AdamOptimizer(learning_rate)\
+                .minimize(self.loss, global_step=global_step)
 
             # Initialize all variables
             init = tf.global_variables_initializer()
