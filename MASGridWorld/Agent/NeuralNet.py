@@ -1,13 +1,12 @@
 import tensorflow as tf
-# from keras.models import Model
-# from tensorflow.python.keras.layers import Lambda;
 import numpy as np
 import random
 
 
 class Brain:
 
-    def __init__(self, input_size=(10, 10), learning_rate=1e-2, decay=1e-2, exploration_rate=0.3):
+    def __init__(self, input_size=(10, 10), learning_rate=1e-4,
+                 decay=1e-2, exploration_rate=0.3, discount_rate=0.7):
         self.input_size = input_size
         self.exploration_rate = exploration_rate
         self.input_layer = None
@@ -16,13 +15,14 @@ class Brain:
         self.learning_rate = learning_rate
         self.lr_decay = decay
         self.exploration_rate = exploration_rate
+        self.discount_rate = discount_rate
         self.optimizer = None
         self.loss = None
         self.train_op = None
         self.saver = None
         self.sess = None
         self.training = True
-        self.model = self.build_network()
+        self.build_network()
 
     def predict(self, input_tensor):
 
@@ -141,8 +141,6 @@ class Brain:
             self.saver = tf.train.Saver()
             self.sess = tf.Session()
             self.sess.run(init)
-
-            # return Model(inputs=self.input_layer, outputs=self.Q_values)
 
     def save_model(self, path, name):
         p = self.saver.save(self.sess, (path + "model_" + name))

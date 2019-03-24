@@ -81,17 +81,17 @@ class Environment:
         # Background channel
         for a in sum(self.obstacles, []):
             x, y = a
-            grid[x][y][0] = 1.0
+            grid[x][y][0] += 1.0
 
         # Opponents channel
         for a in self.opponents:
             x, y = a.get_position()
-            grid[x][y][1] = 1.0
+            grid[x][y][1] += 1.0
 
         # Allies channel
         for a in self.agents:
             x, y = a.get_position()
-            grid[x][y][2] = 1.0
+            grid[x][y][2] += 1.0
 
         return grid
 
@@ -250,17 +250,15 @@ class Environment:
             cols=self.n_cols
         )
 
-        temp_train_brains = [agent.brain for agent in self.agents if agent.training]
-        temp_target_brain = [agent.brain for agent in self.agents if not agent.training]
-
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
-        for agent in self.agents:
-            if agent.training:
-                agent.brain = temp_train_brains[0]
-            else:
-                agent.brain = temp_target_brain.pop(0)
-
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
+
+        for a in self.agents:
+            if a.training:
+                a.brain = self.training_net
+            else:
+                a.brain = self.target_net
+
         self.allowed_moves_per_position = self.create_allowed_moves()
 
     def is_over(self):

@@ -159,21 +159,17 @@ class Sim:
             self.experience_replay,
             self.training_batch_size)
 
-        # Get agent under training
-        training_agent = next(
-            filter(lambda ag: ag.training, self.environment.agents))
-        exploration_rate = training_agent.brain.exploration_rate
+        discount_rate = self.environment.training_net.discount_rate
 
-        # Get target agent
-        target_agent = next(
-            filter(lambda ag: not ag.training, self.environment.agents))
+        training_net = self.environment.training_net
+        target_net = self.environment.target_net
 
         for transition in mini_batch:
 
             # Compute Q value of current training network
-            q = training_agent.brain.sess.run(
-                training_agent.brain.Q_values,
-                feed_dict={training_agent.brain.input_layer: transition["state"]})
+            q = training_net.sess.run(
+                training_net.Q_values,
+                feed_dict={training_net.input_layer: transition["state"]})
 
             # Check for possible ending state
             if transition["next_state"] is None:
@@ -181,26 +177,30 @@ class Sim:
                 target = transition["reward"]
             else:
                 # Compute Q values on next state
-                q_next = target_agent.brain.sess.run(
-                    target_agent.brain.Q_values,
+                q_next = target_net.sess.run(
+                    target_net.Q_values,
                     feed_dict={
-                        target_agent.brain.input_layer: transition["next_state"]
+                        target_net.input_layer: transition["next_state"]
                     })
 
-                # Compute target Q values
-                target = transition["reward"] + exploration_rate * (np.amax(q_next))
+                # Compute target Q value
+                target = transition["reward"] + discount_rate * (np.amax(q_next))
 
             # Update Q values vector with target value
-            target_q = copy.deepcopy(q)
+            target_q = target_net.sess.run(
+                    target_net.Q_values,
+                    feed_dict={
+                        target_net.input_layer: transition["state"]
+                    })
             target_q[0][transition["action"]] = target
 
             # Train neural net
-            l, _ = target_agent.brain.sess.run(
-                [target_agent.brain.loss, target_agent.brain.train_op],
+            l, _ = training_net.sess.run(
+                [training_net.loss, training_net.train_op],
                 feed_dict={
-                    target_agent.brain.input_layer: transition["state"],
-                    target_agent.brain.target_Q: target_q,
-                    target_agent.brain.Q_values: q
+                    training_net.input_layer: transition["state"],
+                    training_net.target_Q: target_q,
+                    training_net.Q_values: q
                 })
 
             # Add loss and reward to sim metrics for later evaluation
