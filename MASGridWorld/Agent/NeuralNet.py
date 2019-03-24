@@ -30,7 +30,7 @@ class Brain:
                                     feed_dict={self.input_layer: input_tensor})
 
         # Take random move or choose best Q-value and associated action
-        if self.training and random.uniform(0, 1) > self.exploration_rate:
+        if self.training and random.uniform(0, 1) < self.exploration_rate:
             i = random.randint(0, 5)
             return predictions[0][i]
         else:

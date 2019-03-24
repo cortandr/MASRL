@@ -29,7 +29,7 @@ class Sim:
         self.allies = allies
         self.opponents = opponents
         self.world_size = world_size
-        self.moves_limit = 15
+        self.moves_limit = 30
         self.experience_replay = list()
         self.training_batch_size = train_batch_size
         self.n_games = n_games
@@ -118,11 +118,11 @@ class Sim:
             if self.viz and self.viz_execution and self.viz_execution(sim):
                 self.environment.reset()
                 sim_moves = 0
-                env_seq = [self.environment]
+                env_seq = [copy.deepcopy(self.environment.grid)]
                 while sim_moves < self.moves_limit and not self.environment.is_over():
                     curr_state = self.environment.brain_input_grid
                     self.environment.step(curr_state.copy())
-                    env_seq.append(self.environment)
+                    env_seq.append(copy.deepcopy(self.environment.grid))
                     sim_moves += 1
                 frames = [self.viz.single_frame(env) for env in env_seq]
                 viz.create_gif(frames, name='simulation_%d' % sim)

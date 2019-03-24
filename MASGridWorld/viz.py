@@ -24,18 +24,18 @@ class Viz(object):
                            -1: (  0,   0,   0)}
         self.save_dir = save_dir
 
-    def single_frame(self, environment):
+    def single_frame(self, environment_grid):
         """
         Creates a single image from the environment.
         :param environment: Enviroment object to visualize.
         :return: frame
         """
-        if not isinstance(environment, Environment):
-            print('An Environment was not provided')
-            return
+        #if not isinstance(environment, Environment):
+        #    print('An Environment was not provided')
+        #    return
 
-        n_rows = environment.n_rows
-        n_cols = environment.n_cols
+        n_rows = len(environment_grid)
+        n_cols = len(environment_grid[0])
 
         cell_height = self.img_size / (n_rows + (n_rows + 1) * 0.1)
         borders_between_rows = cell_height * 0.1
@@ -45,7 +45,8 @@ class Viz(object):
         img = np.zeros((self.img_size, self.img_size, 3), np.uint8)
         img[:, :] = self.colors["default"]
 
-        env_matrix = environment.grid
+        #env_matrix = environment.grid
+        env_matrix = environment_grid
 
         for r in range(n_rows):
             for c in range(n_cols):
