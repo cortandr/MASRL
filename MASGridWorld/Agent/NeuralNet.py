@@ -16,21 +16,26 @@ class Brain:
         self.lr_decay = decay
         self.exploration_rate = exploration_rate
         self.discount_rate = discount_rate
+        self.optimizer = None
         self.loss = None
         self.train_op = None
         self.saver = None
         self.sess = None
         self.training = True
+        self.temp = 0
         self.build_network()
 
     def predict(self, input_tensor):
 
-        predictions = self.sess.run(self.Q_values,
-                                    feed_dict={self.input_layer: input_tensor})
+        predictions = self.sess.run(
+            self.Q_values,
+            feed_dict={
+                self.input_layer: input_tensor,
+            })
 
         # Take random move or choose best Q-value and associated action
         if self.training and random.uniform(0, 1) < self.exploration_rate:
-            i = random.randint(0, 5)
+            i = random.randint(0, 8)
             return predictions[0][i]
         else:
             return np.argmax(predictions)
@@ -132,17 +137,8 @@ class Brain:
 
             # Calculate Loss
             self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
-            global_step = tf.Variable(0, trainable=False)
-            learning_rate = tf.train.exponential_decay(
-                learning_rate=0.01,
-                global_step=0,
-                decay_steps=100000,
-                decay_rate=96,
-                staircase=True)
-
-            # Passing global_step to minimize() will increment it at each step.
-            self.train_op = tf.train.AdamOptimizer(learning_rate)\
-                .minimize(self.loss, global_step=global_step)
+            self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+            self.train_op = self.optimizer.minimize(loss=self.loss)
 
             # Initialize all variables
             init = tf.global_variables_initializer()

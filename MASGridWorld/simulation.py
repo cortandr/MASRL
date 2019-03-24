@@ -169,7 +169,9 @@ class Sim:
             # Compute Q value of current training network
             q = training_net.sess.run(
                 training_net.Q_values,
-                feed_dict={training_net.input_layer: transition["state"]})
+                feed_dict={
+                    training_net.input_layer: transition["state"],
+                })
 
             # Check for possible ending state
             if transition["next_state"] is None:
@@ -180,7 +182,7 @@ class Sim:
                 q_next = target_net.sess.run(
                     target_net.Q_values,
                     feed_dict={
-                        target_net.input_layer: transition["next_state"]
+                        target_net.input_layer: transition["next_state"],
                     })
 
                 # Compute target Q value
@@ -190,7 +192,7 @@ class Sim:
             target_q = target_net.sess.run(
                     target_net.Q_values,
                     feed_dict={
-                        target_net.input_layer: transition["state"]
+                        target_net.input_layer: transition["state"],
                     })
             target_q[0][transition["action"]] = target
 
