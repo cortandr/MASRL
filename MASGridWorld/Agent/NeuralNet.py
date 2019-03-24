@@ -1,4 +1,6 @@
 import tensorflow as tf
+# from keras.models import Model
+# from tensorflow.python.keras.layers import Lambda;
 import numpy as np
 import random
 
@@ -20,7 +22,7 @@ class Brain:
         self.saver = None
         self.sess = None
         self.training = True
-        self.build_network()
+        self.model = self.build_network()
 
     def predict(self, input_tensor):
 
@@ -109,25 +111,25 @@ class Brain:
 
             # First layer
             fc_1 = tf.keras.layers.Dense(
-                units=256,
+                units=128,
                 activation=tf.nn.elu, name="fc_nn1")(global_avg_pool)
 
-            normalized_fc_1 = tf.keras.layers.BatchNormalization(axis=1)(fc_1)
+            # normalized_fc_1 = tf.keras.layers.BatchNormalization(axis=1)(fc_1)
+            #
+            # # Second layer
+            # fc_2 = tf.keras.layers.Dense(
+            #     units=512,
+            #     activation=tf.nn.elu,
+            #     name="fc_nn2")(normalized_fc_1)
 
-            # Second layer
-            fc_2 = tf.keras.layers.Dense(
-                units=512,
-                activation=tf.nn.elu,
-                name="fc_nn2")(normalized_fc_1)
-
-            normalized_fc_2 = tf.keras.layers.BatchNormalization(axis=1)(fc_2)
+            normalized_fc_2 = tf.keras.layers.BatchNormalization(axis=1)(fc_1)
 
             dropout_fc_2 = tf.keras.layers.Dropout(rate=0.5)(normalized_fc_2)
 
             self.Q_values = tf.keras.layers.Dense(
-                units=8,
-                activation=tf.nn.tanh,
-                name="q_values")(dropout_fc_2)
+                    units=8,
+                    activation=tf.nn.tanh,
+                    name="q_values")(dropout_fc_2)
 
             # Calculate Loss
             self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
@@ -140,8 +142,10 @@ class Brain:
             self.sess = tf.Session()
             self.sess.run(init)
 
+            # return Model(inputs=self.input_layer, outputs=self.Q_values)
+
     def save_model(self, path, name):
-        p = self.saver.save(self.sess, (path + "/model_" + name))
+        p = self.saver.save(self.sess, (path + "model_" + name))
         return p
 
     def load_model(self, path):

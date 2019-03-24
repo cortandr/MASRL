@@ -26,7 +26,9 @@ class Environment:
         self.n_agents = n_agents
         self.n_opponents = n_opponents
 
-        self.obstacles = self.generate_random_obstacles(n_rows, n_cols)
+        self.obstacles = None
+        self.allowed_moves_per_position = None
+        self.generate_random_obstacles(n_rows, n_cols)
         team_agents, team_opponents = self.generate_random_agents(
                                                     n_agents=n_agents,
                                                     n_opponents=n_opponents,
@@ -46,10 +48,6 @@ class Environment:
                 a.brain = self.target_net
 
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
-
-        self.allowed_moves_per_position = self.create_allowed_moves()
-
-
 
     @property
     def grid(self):
@@ -198,14 +196,16 @@ class Environment:
         :return:
         """
 
-        # Decide number of obstacles and their length
-        n_obs = randint(0, int((rows + cols)//4))
-        obs_length = [randint(2, int(rows//2)) for _ in range(n_obs)]
+        valid_obs = False
 
-        # Generate all x, y combinations
-        combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
+        while not valid_obs:
 
-        while True:
+            # Decide number of obstacles and their length
+            n_obs = randint(1, int((rows + cols) // 4))
+            obs_length = [randint(2, int(rows // 2)) for _ in range(n_obs)]
+
+            # Generate all x, y combinations
+            combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
 
             obs_list = list()
 
@@ -232,16 +232,17 @@ class Environment:
 
                 obs_list.append(obs)
 
+            self.obstacles = obs_list
+            self.allowed_moves_per_position = self.create_allowed_moves()
+
             # Check validity of obs positions / avoid trapping agents
             start_pos = random.choice(combos)
             reachability_matrix = bfs(start_pos, self)
             valid_obs = sum(sum((reachability_matrix > 0).astype(int))) + 1 + len(sum(obs_list, []))
             valid_obs = valid_obs == self.n_rows * self.n_cols
 
-            if valid_obs: return obs_list
-
     def reset(self):
-        self.obstacles = self.generate_random_obstacles(self.n_rows, self.n_cols)
+        self.generate_random_obstacles(self.n_rows, self.n_cols)
         team_agents, team_opponents = self.generate_random_agents(
             n_agents=self.n_agents,
             n_opponents=self.n_opponents,

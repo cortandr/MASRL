@@ -1,10 +1,11 @@
 import numpy as np
 from environment import Environment
 import random
-import copy
+import pickle
 from utils import bfs
 from viz import Viz
 import os
+import copy
 import json
 
 
@@ -106,7 +107,14 @@ class Sim:
             # Update training net every 10 simulations
             if sim % 10 == 0:
                 self.update_target_net()
+                print("-------------------------------")
+                print("Sim checkpoint : {}".format(sim))
+                print("Average Loss : {}".format(
+                    sum(self.metrics["loss"])/len(self.metrics["loss"])))
+                print("Average reward : {}".format(
+                    sum(self.metrics["reward"])/len(self.metrics["reward"])))
 
+            # Create GIF
             if self.viz and self.viz_execution and self.viz_execution(sim):
                 self.environment.reset()
                 sim_moves = 0
@@ -124,15 +132,18 @@ class Sim:
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
 
-                metrics_json = json.dumps(self.metrics)
-                with open(save_path + 'metrics_' + str(sim) + '.json', "w") as f:
-                    f.write(metrics_json)
+                # metrics_json = json.dumps(self.metrics)
+                with open(save_path + 'metrics_' + str(sim) + '.pkl', "wb") as f:
+                    # f.write(metrics_json)
+                    pickle.dump(self.metrics, f)
+                # Save model
                 training_agent.brain.save_model(save_path, str(sim))
 
             self.environment.reset()
 
     def update_target_net(self):
-        self.environment.target_net = copy.deepcopy(self.environment.training_net)
+        p = self.environment.training_net.save_model("Models/", "temporary_update")
+        self.environment.target_net.load_model(p)
 
     def train_ally(self):
         """
@@ -237,8 +248,8 @@ if __name__ == '__main__':
     viz = Viz(600, save_dir='gifs/')
 
     def viz_execution(sim_number):
-        return sim_number % 500 == 0 or sim_number == 1
+        return sim_number % 50 == 0 or sim_number == 1
 
-    sim = Sim(5, 5, (10, 10), 10, 32, 50000,
+    sim = Sim(5, 5, (10, 10), 100000000, 32, 50000,
               viz=viz, viz_execution=viz_execution, train_saving=viz_execution)
     sim.run()
