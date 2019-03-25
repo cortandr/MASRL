@@ -5,6 +5,9 @@ venv/
 MASGridWorld/Models/*
 MASGridWorld/gifs/*
 
+MASGridWorld/tensorboard/mas/*
+MASGridWorld/tensorboard/graph/*
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__

@@ -16,11 +16,13 @@ class Brain:
         self.lr_decay = decay
         self.exploration_rate = exploration_rate
         self.discount_rate = discount_rate
-        self.optimizer = None
+        self.merged_summary = None
         self.loss = None
         self.train_op = None
+        self.global_step = None
         self.saver = None
         self.sess = None
+        self.writer = None
         self.training = True
         self.temp = 0
         self.build_network()
@@ -61,7 +63,7 @@ class Brain:
                 strides=1,
                 padding="same",
                 activation=tf.nn.relu,
-                name="conv1")(self.input_layer)
+                name="Conv_1")(self.input_layer)
 
             conv2 = tf.keras.layers.Conv2D(
                 filters=32,
@@ -70,9 +72,12 @@ class Brain:
                 padding="same",
                 activation=tf.nn.relu,
                 data_format='channels_last',
-                name="conv2")(conv1)
+                name="Conv_2")(conv1)
 
-            batch_norm1 = tf.keras.layers.BatchNormalization(axis=3)(conv2)
+            batch_norm1 = tf.keras.layers.BatchNormalization(
+                axis=3,
+                name="BatchNorm1"
+            )(conv2)
 
             conv3 = tf.keras.layers.Conv2D(
                 filters=32,
@@ -81,12 +86,18 @@ class Brain:
                 padding="same",
                 activation=tf.nn.relu,
                 data_format='channels_last',
-                name="conv3")(batch_norm1)
+                name="Conv_3")(batch_norm1)
 
-            skip_connection1 = tf.concat([conv3, conv1], axis=3)
+            skip_connection1 = tf.concat(
+                [conv3, conv1],
+                axis=3,
+                name="SkipConnection1"
+            )
             max_pool1 = tf.keras.layers.MaxPool2D(
                 strides=1,
-                pool_size=2)(skip_connection1)
+                pool_size=2,
+                name="MaxPool1"
+            )(skip_connection1)
 
             conv4 = tf.keras.layers.Conv2D(
                 filters=32,
@@ -95,9 +106,12 @@ class Brain:
                 padding="same",
                 activation=tf.nn.relu,
                 data_format='channels_last',
-                name="conv4")(max_pool1)
+                name="Conv_4")(max_pool1)
 
-            batch_norm2 = tf.keras.layers.BatchNormalization(axis=3)(conv4)
+            batch_norm2 = tf.keras.layers.BatchNormalization(
+                axis=3,
+                name="BatchNorm2"
+            )(conv4)
 
             conv5 = tf.keras.layers.Conv2D(
                 filters=32,
@@ -106,50 +120,81 @@ class Brain:
                 padding="same",
                 activation=tf.nn.relu,
                 data_format='channels_last',
-                name="conv5")(batch_norm2)
+                name="Conv_5")(batch_norm2)
 
-            skip_connection2 = tf.concat([conv5, max_pool1], axis=3)
+            skip_connection2 = tf.concat(
+                [conv5, max_pool1],
+                axis=3,
+                name="SkipConnection2"
+            )
 
             # Averaging pooling Layer
-            avPool_out = tf.reduce_mean(skip_connection2, axis=(1, 2), keepdims=True)
-            avPool_output = tf.keras.layers.Flatten()(avPool_out)
-
-            global_avg_pool = tf.keras.layers.BatchNormalization(axis=1)(avPool_output)
+            with tf.name_scope("AveragePooling"):
+                avg_pool_out = tf.reduce_mean(skip_connection2, axis=(1, 2),
+                                              keepdims=True)
+                avg_pool_output = tf.keras.layers.Flatten()(avg_pool_out)
+                global_avg_pool = tf.keras.layers.BatchNormalization(
+                    axis=1)(avg_pool_output)
 
             # Fully connected NN
-
             # First layer
             fc_1 = tf.keras.layers.Dense(
                 units=128,
-                activation=tf.nn.elu, name="fc_nn1")(global_avg_pool)
+                activation=tf.nn.elu,
+                name="fc_1"
+            )(global_avg_pool)
 
-            # normalized_fc_1 = tf.keras.layers.BatchNormalization(axis=1)(fc_1)
-            #
-            # # Second layer
-            # fc_2 = tf.keras.layers.Dense(
-            #     units=512,
-            #     activation=tf.nn.elu,
-            #     name="fc_nn2")(normalized_fc_1)
+            normalized_fc_1 = tf.keras.layers.BatchNormalization(
+                axis=1,
+                name="BatchNorm_fc_1"
+            )(fc_1)
 
-            normalized_fc_2 = tf.keras.layers.BatchNormalization(axis=1)(fc_1)
-
-            dropout_fc_2 = tf.keras.layers.Dropout(rate=0.5)(normalized_fc_2)
+            dropout_fc_2 = tf.keras.layers.Dropout(
+                rate=0.5,
+                name="Dropout"
+            )(normalized_fc_1)
 
             self.Q_values = tf.keras.layers.Dense(
                     units=8,
                     activation=tf.nn.tanh,
-                    name="q_values")(dropout_fc_2)
+                    name="q_values"
+            )(dropout_fc_2)
 
             # Calculate Loss
-            self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
-            self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-            self.train_op = self.optimizer.minimize(loss=self.loss)
+            with tf.name_scope("Loss"):
+                self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
+
+            with tf.name_scope("Global_Step"):
+                self.global_step = tf.Variable(0, trainable=False)
+
+            with tf.name_scope("Learning_Rate"):
+                self.learning_rate = tf.train.exponential_decay(
+                    learning_rate=0.01,
+                    global_step=self.global_step,
+                    decay_steps=100000,
+                    decay_rate=0.96,
+                    staircase=True
+                )
+
+            with tf.name_scope("Train"):
+                self.train_op = tf.train.AdamOptimizer(
+                    learning_rate=self.learning_rate
+                ).minimize(self.loss, global_step=self.global_step)
+
+            # Create tensor board summaries
+            tf.summary.scalar("Learning_Rate", self.learning_rate)
+            tf.summary.scalar("Global_Step", self.global_step)
+            tf.summary.scalar("Loss", self.loss)
+
+            self.merged_summary = tf.summary.merge_all()
 
             # Initialize all variables
             init = tf.global_variables_initializer()
             self.saver = tf.train.Saver()
             self.sess = tf.Session()
             self.sess.run(init)
+            self.writer = tf.summary.FileWriter("tensorboard/mas/1")
+            self.writer.add_graph(self.sess.graph)
 
     def save_model(self, path, name):
         p = self.saver.save(self.sess, (path + "model_" + name))

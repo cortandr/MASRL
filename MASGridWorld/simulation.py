@@ -101,7 +101,7 @@ class Sim:
 
             # Train every 2 simulations
             if sim % 2 == 0:
-                self.train_ally()
+                self.train_ally(sim/2)
 
             # Update training net every 10 simulations
             if sim % 10 == 0:
@@ -142,7 +142,7 @@ class Sim:
         p = self.environment.training_net.save_model("Models/", "temporary_update")
         self.environment.target_net.load_model(p)
 
-    def train_ally(self):
+    def train_ally(self, index):
         """
         Takes a random batch from experience replay memory and uses it to train
         the agent's brain NN
@@ -205,6 +205,17 @@ class Sim:
                     training_net.Q_values: q
                 })
 
+            # Get summary
+            s = training_net.sess.run(
+                training_net.merged_summary,
+                feed_dict={
+                    training_net.input_layer: transition["state"],
+                    training_net.target_Q: target_q,
+                    training_net.Q_values: q
+                })
+
+            training_net.writer.add_summary(s, index)
+
             # Add loss and reward to sim metrics for later evaluation
             batch_loss.append(l)
             batch_reward.append(transition["reward"])
@@ -255,6 +266,14 @@ if __name__ == '__main__':
     def viz_execution(sim_number):
         return sim_number % 250 == 0 or sim_number == 1
 
-    sim = Sim(5, 5, (10, 10), 100000000, 32, 50000,
-              viz=viz, viz_execution=viz_execution, train_saving=viz_execution)
+    sim = Sim(
+        allies=5,
+        opponents=5,
+        world_size=(10, 10),
+        n_games=100000000,
+        train_batch_size=32,
+        replay_mem_limit=50000,
+        viz=viz,
+        viz_execution=viz_execution,
+        train_saving=viz_execution)
     sim.run()
