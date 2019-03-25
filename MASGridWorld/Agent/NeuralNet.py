@@ -25,7 +25,7 @@ class Brain:
         self.temp = 0
         self.build_network()
 
-    def predict(self, input_tensor):
+    def predict(self, input_tensor, allowed_moves):
 
         predictions = self.sess.run(
             self.Q_values,
@@ -33,12 +33,17 @@ class Brain:
                 self.input_layer: input_tensor,
             })
 
+        moves_mask = np.array([1 if pos else np.nan for pos in allowed_moves])
+
+        masked_q_values = predictions * moves_mask
+        valid_idx = [i for i in range(len(masked_q_values[0]))
+                     if masked_q_values[0][i] is not np.nan]
+
         # Take random move or choose best Q-value and associated action
         if self.training and random.uniform(0, 1) < self.exploration_rate:
-            i = random.randint(0, 8)
-            return predictions[0][i]
+            return random.choice(valid_idx)
         else:
-            return np.argmax(predictions)
+            return np.nanargmax(masked_q_values)
 
     def build_network(self):
 

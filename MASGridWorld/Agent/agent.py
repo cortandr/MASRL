@@ -12,14 +12,9 @@ class Agent:
         self.brain = None
 
     def choose_action(self, allowed_moves, state):
-        q_values = self.brain.sess.run(
-            self.brain.Q_values,
-            feed_dict={self.brain.input_layer: state})
 
-        moves_mask = np.array([1 if pos else np.nan for pos in allowed_moves])
+        best_move_idx = self.brain.predict(state, allowed_moves)
 
-        masked_q_values = q_values * moves_mask
-        best_move_idx = np.nanargmax(masked_q_values)
         self.position = allowed_moves[best_move_idx]
         self.chosen_action = best_move_idx
 
