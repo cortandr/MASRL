@@ -28,7 +28,7 @@ class Sim:
         self.allies = allies
         self.opponents = opponents
         self.world_size = world_size
-        self.moves_limit = 30
+        self.moves_limit = 20
         self.experience_replay = list()
         self.training_batch_size = train_batch_size
         self.n_games = n_games
@@ -47,6 +47,8 @@ class Sim:
         self.viz = viz
         self.viz_execution = viz_execution
         self.train_saving = train_saving
+        self.r1_w = 0.4
+        self.r2_w = 0.6
 
     def run(self):
         """
@@ -83,6 +85,7 @@ class Sim:
 
                 # Get reward
                 reward = self.get_reward()
+                self.metrics["reward"].append(reward)
 
                 # Get state after chosen action is applied
                 next_state = self.environment.brain_input_grid
@@ -100,11 +103,16 @@ class Sim:
             sim += 1
 
             # Train every 2 simulations
-            if sim % 2 == 0:
+            if sim % 10 == 0:
                 self.train_ally(sim/2)
+                if sim < 10000:
+                    self.r1_w += 1e-5
+                    self.r2_w -= 1e-5
+                if sim < 10000:
+                    training_agent.brain.exploration_rate -= 5e-5
 
             # Update training net every 10 simulations
-            if sim % 10 == 0:
+            if sim % 500 == 0:
                 self.update_target_net()
                 print("-------------------------------")
                 print("Sim checkpoint : {}".format(sim))
@@ -161,17 +169,18 @@ class Sim:
         training_net = self.environment.training_net
         target_net = self.environment.target_net
 
-        batch_loss = list()
-        batch_reward = list()
+        # Build input and target network batches
+        input_batch = np.ndarray(
+            shape=(
+                self.training_batch_size,
+                self.environment.n_rows,
+                self.environment.n_cols,
+                4
+            ))
 
-        for transition in mini_batch:
+        target_batch = np.ndarray(shape=(self.training_batch_size, 1, 8))
 
-            # Compute Q value of current training network
-            q = training_net.sess.run(
-                training_net.Q_values,
-                feed_dict={
-                    training_net.input_layer: transition["state"],
-                })
+        for i, transition in enumerate(mini_batch):
 
             # Check for possible ending state
             if transition["next_state"] is None:
@@ -196,43 +205,58 @@ class Sim:
                     })
             target_q[0][transition["action"]] = target
 
-            # Train neural net
-            l, _ = training_net.sess.run(
-                [training_net.loss, training_net.train_op],
-                feed_dict={
-                    training_net.input_layer: transition["state"],
-                    training_net.target_Q: target_q,
-                    training_net.Q_values: q
-                })
+            input_state = np.reshape(
+                transition["state"],
+                newshape=(
+                    transition["state"].shape[1],
+                    transition["state"].shape[2],
+                    transition["state"].shape[3],
+                ))
 
-            # Get summary
-            s = training_net.sess.run(
-                training_net.merged_summary,
-                feed_dict={
-                    training_net.input_layer: transition["state"],
-                    training_net.target_Q: target_q,
-                    training_net.Q_values: q
-                })
+            input_batch[i] = input_state
+            target_batch[i] = target_q
 
-            training_net.writer.add_summary(s, index)
+        q = training_net.sess.run(
+            training_net.Q_values,
+            feed_dict={
+                training_net.input_layer: input_batch,
+            })
 
-            # Add loss and reward to sim metrics for later evaluation
-            batch_loss.append(l)
-            batch_reward.append(transition["reward"])
+        # Train neural net
+        l, _ = training_net.sess.run(
+            [training_net.loss, training_net.train_op],
+            feed_dict={
+                training_net.input_layer: input_batch,
+                training_net.target_Q: target_batch,
+                training_net.Q_values: q
+            })
 
-        self.metrics["loss"].append(np.array(batch_loss).mean())
-        self.metrics["reward"].append(np.array(batch_reward).mean())
+        self.metrics["loss"].append(l)
+
+        # Get summary
+        s = training_net.sess.run(
+            training_net.merged_summary,
+            feed_dict={
+                training_net.input_layer: input_batch,
+                training_net.target_Q: target_batch,
+                training_net.Q_values: q
+            })
+
+        training_net.writer.add_summary(s, index)
 
     def get_reward(self):
         # Reward 1 -> number of agents
         reward1 = len(self.environment.agents) - \
                   (len(self.environment.opponents) ** 2)
 
-        bottom_limit = self.allies - (self.opponents ** 2)
-        # top limit is self.allies
-        reward_range = self.allies - bottom_limit
-        shift = (reward_range / 2) - self.allies
-        reward1 = (reward1 + shift) / (reward_range / 2)
+        range1 = self.allies - self.allies - (self.opponents ** 2)
+        reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
+
+        # bottom_limit = self.allies - (self.opponents ** 2)
+        # # top limit is self.allies
+        # reward_range = self.allies - bottom_limit
+        # shift = (reward_range / 2) - self.allies
+        # reward1 = (reward1 + shift) / (reward_range / 2)
 
         # Reward 2 -> board coverage
         # Do BFS for ally agents and opponents
@@ -254,9 +278,12 @@ class Sim:
         # for cells closer to opponents
         combined = distances_agents - distances_opponents
         reward2 = sum(sum((combined < 0).astype(int))) - sum(sum((combined > 0).astype(int)))
-        reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
+        range2 = (self.environment.n_rows*self.environment.n_cols) - \
+                 (-(self.environment.n_rows*self.environment.n_cols))
+        # reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
+        reward2 = (reward2 - (-100)) / range2
 
-        return 0.6*reward1 + 0.4*reward2
+        return self.r1_w*reward1 + self.r2_w*reward2
 
 
 if __name__ == '__main__':
@@ -270,9 +297,9 @@ if __name__ == '__main__':
         allies=5,
         opponents=5,
         world_size=(10, 10),
-        n_games=100000000,
+        n_games=200000,
         train_batch_size=32,
-        replay_mem_limit=50000,
+        replay_mem_limit=100000,
         viz=viz,
         viz_execution=viz_execution,
         train_saving=viz_execution)

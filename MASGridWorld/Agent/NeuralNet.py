@@ -6,13 +6,13 @@ import random
 class Brain:
 
     def __init__(self, input_size=(10, 10), learning_rate=1e-4,
-                 decay=1e-2, exploration_rate=0.3, discount_rate=0.7):
+                 decay=1e-2, exploration_rate=0.7, discount_rate=0.7):
         self.input_size = input_size
         self.exploration_rate = exploration_rate
         self.input_layer = None
         self.target_Q = None
         self.Q_values = None
-        self.learning_rate = learning_rate
+        self.learning_rate = None
         self.lr_decay = decay
         self.exploration_rate = exploration_rate
         self.discount_rate = discount_rate
@@ -24,7 +24,6 @@ class Brain:
         self.sess = None
         self.writer = None
         self.training = True
-        self.temp = 0
         self.build_network()
 
     def predict(self, input_tensor, allowed_moves):
@@ -38,6 +37,7 @@ class Brain:
         moves_mask = np.array([1 if pos else np.nan for pos in allowed_moves])
 
         masked_q_values = predictions * moves_mask
+
         valid_idx = [i for i in range(len(masked_q_values[0]))
                      if not np.isnan(masked_q_values[0][i])]
 
@@ -55,7 +55,7 @@ class Brain:
             self.input_layer = tf.placeholder(
                 tf.float32,
                 [None, self.input_size[0], self.input_size[1], 4])
-            self.target_Q = tf.placeholder(tf.float32, (1, 8))
+            self.target_Q = tf.placeholder(tf.float32, (None, 1, 8))
 
             conv1 = tf.keras.layers.Conv2D(
                 filters=32,
@@ -156,7 +156,7 @@ class Brain:
 
             self.Q_values = tf.keras.layers.Dense(
                     units=8,
-                    activation=tf.nn.tanh,
+                    activation=tf.nn.softmax,
                     name="q_values"
             )(dropout_fc_2)
 
@@ -169,17 +169,17 @@ class Brain:
 
             with tf.name_scope("Learning_Rate"):
                 self.learning_rate = tf.train.exponential_decay(
-                    learning_rate=0.01,
+                    learning_rate=0.1,
                     global_step=self.global_step,
-                    decay_steps=100000,
-                    decay_rate=0.96,
+                    decay_steps=1000,
+                    decay_rate=0.95,
                     staircase=True
                 )
 
             with tf.name_scope("Train"):
                 self.train_op = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate
-                ).minimize(self.loss, global_step=self.global_step)
+                ).minimize(self.loss, self.global_step)
 
             # Create tensor board summaries
             tf.summary.scalar("Learning_Rate", self.learning_rate)
