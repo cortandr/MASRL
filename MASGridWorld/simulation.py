@@ -47,8 +47,8 @@ class Sim:
         self.viz = viz
         self.viz_execution = viz_execution
         self.train_saving = train_saving
-        self.r1_w = 0.4
-        self.r2_w = 0.6
+        self.r1_w = 0.3
+        self.r2_w = 0.7
 
     def run(self):
         """
@@ -102,14 +102,16 @@ class Sim:
 
             sim += 1
 
+            if sim < 50000:
+                self.r1_w += 8e-6
+                self.r2_w -= 8e-6
+            if sim < 10000:
+                # training_agent.brain.exploration_rate -= 5e-5
+                training_agent.brain.temp += 2.25e-5
+
             # Train every 2 simulations
             if sim % 10 == 0:
                 self.train_ally(sim/2)
-                if sim < 50000:
-                    self.r1_w += 4e-5
-                    self.r2_w -= 4e-5
-                if sim < 10000:
-                    training_agent.brain.exploration_rate -= 5e-5
 
             # Update training net every 10 simulations
             if sim % 500 == 0:
@@ -249,10 +251,10 @@ class Sim:
         reward1 = (len(self.environment.agents) - \
                   len(self.environment.opponents)) ** 2
 
-        #range1 = self.allies - (self.allies - (self.opponents ** 2))
-        range1 = self.allies ** 2 - (self.allies - self.opponents) ** 2
-        #reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
-        reward1 = reward1 / range1
+        range1 = self.allies - (self.allies - (self.opponents ** 2))
+        # range1 = self.allies ** 2 - (self.allies - self.opponents) ** 2
+        reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
+        # reward1 = reward1 / range1
 
         # bottom_limit = self.allies - (self.opponents ** 2)
         # # top limit is self.allies
@@ -286,8 +288,7 @@ class Sim:
         reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
         reward2 = (reward2 - (-100)) / range2
 
-        #return self.r1_w*reward1 + self.r2_w*reward2
-        return 0.95*reward1 + 0.05*reward2
+        return self.r1_w*reward1 + self.r2_w*reward2
 
 
 if __name__ == '__main__':

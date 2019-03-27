@@ -6,7 +6,7 @@ import random
 class Brain:
 
     def __init__(self, input_size=(10, 10), learning_rate=1e-4,
-                 decay=1e-2, exploration_rate=0.7, discount_rate=0.7):
+                 decay=1e-2, exploration_rate=0.8, discount_rate=0.7):
         self.input_size = input_size
         self.exploration_rate = exploration_rate
         self.input_layer = None
@@ -23,6 +23,7 @@ class Brain:
         self.saver = None
         self.sess = None
         self.writer = None
+        self.temp = 0.5
         self.training = True
         self.build_network()
 
@@ -42,10 +43,11 @@ class Brain:
                      if not np.isnan(masked_q_values[0][i])]
 
         # Take random move or choose best Q-value and associated action
-        if self.training and random.uniform(0, 1) < self.exploration_rate:
-            return random.choice(valid_idx)
-        else:
-            return np.nanargmax(masked_q_values)
+        # if self.training and random.uniform(0, 1) < self.exploration_rate:
+        #     return random.choice(valid_idx)
+        # else:
+        #     return np.nanargmax(masked_q_values)
+        return np.nanargmax(masked_q_values)
 
     def build_network(self):
 
@@ -59,14 +61,14 @@ class Brain:
 
             conv1 = tf.keras.layers.Conv2D(
                 filters=32,
-                kernel_size=[5, 5],
+                kernel_size=[3, 3],
                 strides=1,
                 padding="same",
                 activation=tf.nn.relu,
                 name="Conv_1")(self.input_layer)
 
             conv2 = tf.keras.layers.Conv2D(
-                filters=32,
+                filters=64,
                 kernel_size=[3, 3],
                 strides=1,
                 padding="same",
@@ -100,7 +102,7 @@ class Brain:
             )(skip_connection1)
 
             conv4 = tf.keras.layers.Conv2D(
-                filters=32,
+                filters=128,
                 kernel_size=[3, 3],
                 strides=1,
                 padding="same",
@@ -139,8 +141,8 @@ class Brain:
             # Fully connected NN
             # First layer
             fc_1 = tf.keras.layers.Dense(
-                units=128,
-                activation=tf.nn.elu,
+                units=64,
+                activation=tf.nn.relu,
                 name="fc_1"
             )(global_avg_pool)
 
@@ -158,7 +160,7 @@ class Brain:
                     units=8,
                     activation=tf.nn.softmax,
                     name="q_values"
-            )(dropout_fc_2)
+            )(dropout_fc_2/self.temp)
 
             # Calculate Loss
             with tf.name_scope("Loss"):
