@@ -248,13 +248,12 @@ class Sim:
 
     def get_reward(self):
         # Reward 1 -> number of agents
-        reward1 = (len(self.environment.agents) - \
-                  len(self.environment.opponents)) ** 2
+        reward1 = len(self.environment.agents) - len(self.environment.opponents)
 
-        range1 = self.allies - (self.allies - (self.opponents ** 2))
+        range1 = self.allies
         # range1 = self.allies ** 2 - (self.allies - self.opponents) ** 2
-        reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
-        # reward1 = reward1 / range1
+        # reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
+        reward1 = reward1 / range1
 
         # bottom_limit = self.allies - (self.opponents ** 2)
         # # top limit is self.allies
@@ -271,9 +270,10 @@ class Sim:
 
         # In case there is no more opponents the list above is empty
         if not distances_opponents:
-            distances_opponents = [np.full((self.environment.n_rows,
-                                            self.environment.n_cols),
-                                            self.environment.n_rows * self.environment.n_cols)]
+            distances_opponents = [np.full((
+                self.environment.n_rows,
+                self.environment.n_cols),
+                self.environment.n_rows * self.environment.n_cols)]
 
         # Calculate the minimum distance to the cells for the whole teams
         distances_agents = np.array(distances_agents).min(axis=0)
