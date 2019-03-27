@@ -78,7 +78,7 @@ class Sim:
                 curr_state = self.environment.brain_input_grid
 
                 # Apply step in Environment
-                self.environment.step(curr_state.copy())
+                self.environment.step()
 
                 # Get agent chosen action
                 action = training_agent.get_chosen_action()
@@ -94,7 +94,7 @@ class Sim:
                 self.experience_replay.append({
                     "state": np.array([curr_state]),
                     "action": action,
-                    "next_state": np.array([next_state]),
+                    "next_state": np.array([next_state]) if next_state is not None else None,
                     "reward": reward,
                 })
 
@@ -105,9 +105,9 @@ class Sim:
             # Train every 2 simulations
             if sim % 10 == 0:
                 self.train_ally(sim/2)
-                if sim < 10000:
-                    self.r1_w += 1e-5
-                    self.r2_w -= 1e-5
+                if sim < 50000:
+                    self.r1_w += 4e-5
+                    self.r2_w -= 4e-5
                 if sim < 10000:
                     training_agent.brain.exploration_rate -= 5e-5
 
@@ -128,7 +128,7 @@ class Sim:
                 env_seq = [copy.deepcopy(self.environment.grid)]
                 while sim_moves < self.moves_limit and not self.environment.is_over():
                     curr_state = self.environment.brain_input_grid
-                    self.environment.step(curr_state.copy())
+                    self.environment.step()
                     env_seq.append(copy.deepcopy(self.environment.grid))
                     sim_moves += 1
                 frames = [self.viz.single_frame(env) for env in env_seq]
@@ -246,11 +246,13 @@ class Sim:
 
     def get_reward(self):
         # Reward 1 -> number of agents
-        reward1 = len(self.environment.agents) - \
-                  (len(self.environment.opponents) ** 2)
+        reward1 = (len(self.environment.agents) - \
+                  len(self.environment.opponents)) ** 2
 
-        range1 = self.allies - self.allies - (self.opponents ** 2)
-        reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
+        #range1 = self.allies - (self.allies - (self.opponents ** 2))
+        range1 = self.allies ** 2 - (self.allies - self.opponents) ** 2
+        #reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
+        reward1 = reward1 / range1
 
         # bottom_limit = self.allies - (self.opponents ** 2)
         # # top limit is self.allies
@@ -267,8 +269,9 @@ class Sim:
 
         # In case there is no more opponents the list above is empty
         if not distances_opponents:
-            distances_opponents = np.zeros((self.environment.n_rows,
-                                            self.environment.n_cols))
+            distances_opponents = [np.full((self.environment.n_rows,
+                                            self.environment.n_cols),
+                                            self.environment.n_rows * self.environment.n_cols)]
 
         # Calculate the minimum distance to the cells for the whole teams
         distances_agents = np.array(distances_agents).min(axis=0)
@@ -280,10 +283,11 @@ class Sim:
         reward2 = sum(sum((combined < 0).astype(int))) - sum(sum((combined > 0).astype(int)))
         range2 = (self.environment.n_rows*self.environment.n_cols) - \
                  (-(self.environment.n_rows*self.environment.n_cols))
-        # reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
+        reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
         reward2 = (reward2 - (-100)) / range2
 
-        return self.r1_w*reward1 + self.r2_w*reward2
+        #return self.r1_w*reward1 + self.r2_w*reward2
+        return 0.95*reward1 + 0.05*reward2
 
 
 if __name__ == '__main__':

@@ -75,6 +75,9 @@ class Environment:
     @property
     def brain_input_grid(self):
 
+        if not self.opponents:
+            return None
+
         # Initialize empty grid
         grid = np.zeros((self.n_rows, self.n_cols, 4), np.int8)
 
@@ -114,15 +117,15 @@ class Environment:
             return self.allowed_moves_per_position[agent]
         return self.allowed_moves_per_position[agent.get_position()]
 
-    def step(self, state):
-
-        state_tensor = np.array([state])
+    def step(self):
 
         for dummy in self.opponents:
             allowed_moves = self.allowed_moves(dummy)
             dummy.choose_action(
                 allowed_moves,
                 self.agents)
+
+        state_tensor = np.array([self.brain_input_grid.copy()])
 
         for agent in self.agents:
             allowed_moves = self.allowed_moves(agent)
