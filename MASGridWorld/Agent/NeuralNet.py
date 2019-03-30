@@ -5,16 +5,16 @@ import random
 
 class Brain:
 
-    def __init__(self, input_size=(10, 10), learning_rate=1e-4,
-                 decay=1e-2, exploration_rate=0.8, discount_rate=0.7):
+    def __init__(self, training, input_size=(10, 10), learning_rate=1e-4,
+                 decay=1e-2, exploration_rate=0.8, discount_rate=0.7,
+                 output_dim=8):
         self.input_size = input_size
         self.exploration_rate = exploration_rate
         self.input_layer = None
         self.target_Q = None
         self.Q_values = None
-        self.learning_rate = None
+        self.learning_rate = learning_rate
         self.lr_decay = decay
-        self.exploration_rate = exploration_rate
         self.discount_rate = discount_rate
         self.merged_summary = None
         self.loss = None
@@ -23,9 +23,13 @@ class Brain:
         self.saver = None
         self.sess = None
         self.writer = None
-        self.temp = 0.5
-        self.training = True
+        self.temp = 0.6
+        self.training = training
+        self.output_dim = output_dim
         self.build_network()
+
+    def set_mask(self, new_mask):
+        self.action_mask = new_mask
 
     def predict(self, input_tensor, allowed_moves):
 
@@ -35,19 +39,22 @@ class Brain:
                 self.input_layer: input_tensor,
             })
 
-        moves_mask = np.array([1 if pos else np.nan for pos in allowed_moves])
-
+        moves_mask = np.array([1 if pos else 0 for pos in allowed_moves])
         masked_q_values = predictions * moves_mask
+        prob_sum = sum(masked_q_values[0])
+        random_sum = random.uniform(0, prob_sum)
+        masked_q_values[masked_q_values == 0] = None
+        if all(np.isnan(masked_q_values[0])):
+            return random.choice([i for i in range(len(allowed_moves))
+                                  if allowed_moves[i] is not None])
 
-        valid_idx = [i for i in range(len(masked_q_values[0]))
-                     if not np.isnan(masked_q_values[0][i])]
+        if not self.training:
+            return np.nanargmax(masked_q_values)
 
-        # Take random move or choose best Q-value and associated action
-        # if self.training and random.uniform(0, 1) < self.exploration_rate:
-        #     return random.choice(valid_idx)
-        # else:
-        #     return np.nanargmax(masked_q_values)
-        return np.nanargmax(masked_q_values)
+        for idx, el in enumerate(masked_q_values[0]):
+            if el and random_sum <= el:
+                return idx
+            random_sum = random_sum - el if not np.isnan(el) else random_sum
 
     def build_network(self):
 
@@ -68,7 +75,7 @@ class Brain:
                 name="Conv_1")(self.input_layer)
 
             conv2 = tf.keras.layers.Conv2D(
-                filters=64,
+                filters=32,
                 kernel_size=[3, 3],
                 strides=1,
                 padding="same",
@@ -102,7 +109,7 @@ class Brain:
             )(skip_connection1)
 
             conv4 = tf.keras.layers.Conv2D(
-                filters=128,
+                filters=32,
                 kernel_size=[3, 3],
                 strides=1,
                 padding="same",
@@ -157,14 +164,19 @@ class Brain:
             )(normalized_fc_1)
 
             self.Q_values = tf.keras.layers.Dense(
-                    units=8,
-                    activation=tf.nn.softmax,
-                    name="q_values"
+                units=self.output_dim,
+                activation="softmax",
+                name="QValues"
             )(dropout_fc_2/self.temp)
 
             # Calculate Loss
             with tf.name_scope("Loss"):
-                self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
+                # self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
+                entropy = tf.nn.softmax_cross_entropy_with_logits_v2(
+                    logits=self.Q_values,
+                    labels=self.target_Q
+                )
+                self.loss = tf.reduce_mean(entropy)
 
             with tf.name_scope("Global_Step"):
                 self.global_step = tf.Variable(0, trainable=False)

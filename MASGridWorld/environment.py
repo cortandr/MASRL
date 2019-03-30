@@ -30,16 +30,17 @@ class Environment:
         self.allowed_moves_per_position = None
         self.generate_random_obstacles(n_rows, n_cols)
         team_agents, team_opponents = self.generate_random_agents(
-                                                    n_agents=n_agents,
-                                                    n_opponents=n_opponents,
-                                                    rows=n_rows,
-                                                    cols=n_cols
-                                                )
+            n_agents=n_agents,
+            n_opponents=n_opponents,
+            rows=n_rows,
+            cols=n_cols,
+            cluster=False
+        )
 
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
 
-        self.training_net = Brain()
-        self.target_net = Brain()
+        self.training_net = Brain(True)
+        self.target_net = Brain(False)
 
         for a in self.agents:
             if a.training:
@@ -244,7 +245,7 @@ class Environment:
             valid_obs = sum(sum((reachability_matrix > 0).astype(int))) + 1 + len(sum(obs_list, []))
             valid_obs = valid_obs == self.n_rows * self.n_cols
 
-    def reset(self):
+    def reset(self, training=True):
         self.generate_random_obstacles(self.n_rows, self.n_cols)
         team_agents, team_opponents = self.generate_random_agents(
             n_agents=self.n_agents,
@@ -263,6 +264,7 @@ class Environment:
                 a.brain = self.target_net
 
         self.allowed_moves_per_position = self.create_allowed_moves()
+        self.training_net.training = training
 
     def is_over(self):
         return len(self.opponents) == 0

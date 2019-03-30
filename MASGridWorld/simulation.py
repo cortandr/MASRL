@@ -47,8 +47,8 @@ class Sim:
         self.viz = viz
         self.viz_execution = viz_execution
         self.train_saving = train_saving
-        self.r1_w = 0.3
-        self.r2_w = 0.7
+        self.r1_w = 0.5
+        self.r2_w = 0.5
 
     def run(self):
         """
@@ -102,19 +102,19 @@ class Sim:
 
             sim += 1
 
-            if sim < 50000:
-                self.r1_w += 8e-6
-                self.r2_w -= 8e-6
+            # if sim < 50000:
+            #     self.r1_w += 8e-6
+            #     self.r2_w -= 8e-6
             if sim < 10000:
                 # training_agent.brain.exploration_rate -= 5e-5
-                training_agent.brain.temp += 2.25e-5
+                training_agent.brain.temp -= 5e-5
 
             # Train every 2 simulations
             if sim % 10 == 0:
                 self.train_ally(sim/2)
 
             # Update training net every 10 simulations
-            if sim % 500 == 0:
+            if sim % 250 == 0:
                 self.update_target_net()
                 print("-------------------------------")
                 print("Sim checkpoint : {}".format(sim))
@@ -125,7 +125,7 @@ class Sim:
 
             # Create GIF
             if self.viz and self.viz_execution and self.viz_execution(sim):
-                self.environment.reset()
+                self.environment.reset(False)
                 sim_moves = 0
                 env_seq = [copy.deepcopy(self.environment.grid)]
                 while sim_moves < self.moves_limit and not self.environment.is_over():
