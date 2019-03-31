@@ -1,6 +1,5 @@
 from Agent.agent import Agent, DummyAgent
 from Agent.NeuralNet import Brain
-from random import randint
 from utils import *
 import random
 import copy
@@ -49,9 +48,9 @@ class Environment:
                 a.brain = self.target_net
 
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
-        self.r1_w = 0.5
-        self.r2_w = 0.2
-        self.r3_w = 0.3
+        self.r1_w = 0.4
+        self.r2_w = 0.4
+        self.r3_w = 0.2
 
     @property
     def grid(self):
@@ -85,20 +84,20 @@ class Environment:
         # Initialize empty grid
         grid = np.zeros((self.n_rows, self.n_cols, 4), np.int8)
 
-        # Background channel
-        for a in sum(self.obstacles, []):
-            x, y = a
-            grid[x][y][0] += 1.0
+        # Allies channel
+        for a in self.agents:
+            x, y = a.get_position()
+            grid[x][y][1] += 1.0
 
         # Opponents channel
         for a in self.opponents:
             x, y = a.get_position()
-            grid[x][y][1] += 1.0
-
-        # Allies channel
-        for a in self.agents:
-            x, y = a.get_position()
             grid[x][y][2] += 1.0
+
+        # Background channel
+        for a in sum(self.obstacles, []):
+            x, y = a
+            grid[x][y][3] += 1.0
 
         return grid
 
@@ -129,13 +128,13 @@ class Environment:
                 allowed_moves,
                 self.agents)
 
-        state_tensor = np.array([self.brain_input_grid.copy()])
+        state_tensor = np.array([copy.deepcopy(self.brain_input_grid)])
 
         for agent in self.agents:
             allowed_moves = self.allowed_moves(agent)
             temp_state_tensor = copy.deepcopy(state_tensor)
             x, y = agent.get_position()
-            temp_state_tensor[0][x][y][3] = 1
+            temp_state_tensor[0][x][y][0] = 1
             agent.choose_action(allowed_moves, temp_state_tensor)
 
         # Check for overlapping opponents
@@ -151,7 +150,11 @@ class Environment:
         self.opponents = [oppo for oppo in self.opponents
                            if oppo.get_position() not in agents]
 
-        return self.get_reward(int(training_ate))
+        # Get next state
+        next_state = self.brain_input_grid
+        next_state = np.array([copy.deepcopy(next_state)]) if next_state is not None else None
+
+        return state_tensor, next_state, self.get_reward(int(training_ate))
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
@@ -289,28 +292,20 @@ class Environment:
         return len(self.opponents) == 0
 
     def get_reward(self, training_ate):
+
         # Reward 1 -> number of agents
         reward1 = (self.n_agents - self.n_opponents)**2
 
-        range1 = self.n_agents**2
-        # range1 = self.allies ** 2 - (self.allies - self.opponents) ** 2
-        # reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
-        reward1 = reward1 / range1
-
-        # bottom_limit = self.allies - (self.opponents ** 2)
-        # # top limit is self.allies
-        # reward_range = self.allies - bottom_limit
-        # shift = (reward_range / 2) - self.allies
-        # reward1 = (reward1 + shift) / (reward_range / 2)
+        range1 = self.n_agents ** 2
+        shift = (range1 / 2)
+        reward1 = (reward1 - shift) / (range1 / 2)
 
         # Reward 2 -> board coverage
         combined = self.reachability()
         reward2 = sum(sum((combined < 0).astype(int))) - \
                   sum(sum((combined > 0).astype(int)))
-        range2 = (self.n_rows*self.n_cols) - \
-                 (-(self.n_rows*self.n_cols))
-        reward2 = reward2 / (self.n_rows * self.n_cols)
-        reward2 = (reward2 - (-100)) / range2
+        range2 = self.n_rows*self.n_cols
+        reward2 = reward2 / range2
 
         return self.r1_w*reward1 + self.r2_w*reward2 + self.r3_w*training_ate
 

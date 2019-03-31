@@ -47,8 +47,6 @@ class Sim:
         self.viz = viz
         self.viz_execution = viz_execution
         self.train_saving = train_saving
-        self.r1_w = 0.5
-        self.r2_w = 0.5
 
     def run(self):
         """
@@ -72,47 +70,51 @@ class Sim:
             training_agent = next(
                 filter(lambda ag: ag.training, self.environment.agents))
 
+            episode_reward = []
+
             while sim_moves < self.moves_limit and not self.environment.is_over():
 
                 # Current state
-                curr_state = self.environment.brain_input_grid
+                # curr_state = self.environment.brain_input_grid
 
                 # Apply step in Environment
-                reward = self.environment.step()
+                curr_state, next_state, reward = self.environment.step()
 
                 # Get agent chosen action
                 action = training_agent.get_chosen_action()
 
                 # Get state after chosen action is applied
-                next_state = self.environment.brain_input_grid
+                # next_state = self.environment.brain_input_grid
 
-                self.metrics["reward"].append(reward)
+                episode_reward.append(reward)
 
                 # Store transition in replay table
                 self.experience_replay.append({
-                    "state": np.array([curr_state]),
+                    "state": curr_state,
                     "action": action,
-                    "next_state": np.array([next_state]) if next_state is not None else None,
+                    "next_state": next_state,
                     "reward": reward,
                 })
 
                 sim_moves += 1
+
+            self.metrics["reward"].append(sum(episode_reward)/len(episode_reward))
 
             sim += 1
 
             # if sim < 50000:
             #     self.r1_w += 8e-6
             #     self.r2_w -= 8e-6
-            if sim < 10000:
+            if sim < 100000:
                 # training_agent.brain.exploration_rate -= 5e-5
-                training_agent.brain.temp -= 5e-5
+                training_agent.brain.temp -= 9e-6
 
             # Train every 2 simulations
             if sim % 10 == 0:
                 self.train_ally(sim/2)
 
             # Update training net every 10 simulations
-            if sim % 250 == 0:
+            if sim % 1000 == 0:
                 self.update_target_net()
                 print("-------------------------------")
                 print("Sim checkpoint : {}".format(sim))

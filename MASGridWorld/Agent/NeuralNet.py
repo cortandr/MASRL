@@ -13,6 +13,7 @@ class Brain:
         self.input_layer = None
         self.target_Q = None
         self.Q_values = None
+        self.Q_dist = None
         self.learning_rate = learning_rate
         self.lr_decay = decay
         self.discount_rate = discount_rate
@@ -23,7 +24,7 @@ class Brain:
         self.saver = None
         self.sess = None
         self.writer = None
-        self.temp = 0.6
+        self.temp = 1.0
         self.training = training
         self.output_dim = output_dim
         self.build_network()
@@ -34,7 +35,7 @@ class Brain:
     def predict(self, input_tensor, allowed_moves):
 
         predictions = self.sess.run(
-            self.Q_values,
+            self.Q_dist,
             feed_dict={
                 self.input_layer: input_tensor,
             })
@@ -153,30 +154,21 @@ class Brain:
                 name="fc_1"
             )(global_avg_pool)
 
-            normalized_fc_1 = tf.keras.layers.BatchNormalization(
-                axis=1,
-                name="BatchNorm_fc_1"
-            )(fc_1)
-
-            dropout_fc_2 = tf.keras.layers.Dropout(
-                rate=0.5,
-                name="Dropout"
-            )(normalized_fc_1)
-
             self.Q_values = tf.keras.layers.Dense(
                 units=self.output_dim,
-                activation="softmax",
+                activation=tf.nn.tanh,
                 name="QValues"
-            )(dropout_fc_2/self.temp)
+            )(fc_1)
+
+            self.Q_dist = tf.nn.softmax(
+                logits=self.Q_values/self.temp,
+                name="Q_Dist"
+            )
 
             # Calculate Loss
             with tf.name_scope("Loss"):
-                # self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q_values))
-                entropy = tf.nn.softmax_cross_entropy_with_logits_v2(
-                    logits=self.Q_values,
-                    labels=self.target_Q
-                )
-                self.loss = tf.reduce_mean(entropy)
+                self.loss = tf.reduce_mean(
+                    tf.square(self.target_Q - self.Q_values))
 
             with tf.name_scope("Global_Step"):
                 self.global_step = tf.Variable(0, trainable=False)
