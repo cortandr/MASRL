@@ -78,17 +78,15 @@ class Sim:
                 curr_state = self.environment.brain_input_grid
 
                 # Apply step in Environment
-                self.environment.step()
+                reward = self.environment.step()
 
                 # Get agent chosen action
                 action = training_agent.get_chosen_action()
 
-                # Get reward
-                reward = self.get_reward()
-                self.metrics["reward"].append(reward)
-
                 # Get state after chosen action is applied
                 next_state = self.environment.brain_input_grid
+
+                self.metrics["reward"].append(reward)
 
                 # Store transition in replay table
                 self.experience_replay.append({
@@ -245,50 +243,6 @@ class Sim:
             })
 
         training_net.writer.add_summary(s, index)
-
-    def get_reward(self):
-        # Reward 1 -> number of agents
-        reward1 = len(self.environment.agents) - len(self.environment.opponents)
-
-        range1 = self.allies
-        # range1 = self.allies ** 2 - (self.allies - self.opponents) ** 2
-        # reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
-        reward1 = reward1 / range1
-
-        # bottom_limit = self.allies - (self.opponents ** 2)
-        # # top limit is self.allies
-        # reward_range = self.allies - bottom_limit
-        # shift = (reward_range / 2) - self.allies
-        # reward1 = (reward1 + shift) / (reward_range / 2)
-
-        # Reward 2 -> board coverage
-        # Do BFS for ally agents and opponents
-        distances_agents = [bfs(a, self.environment)
-                            for a in self.environment.agents]
-        distances_opponents = [bfs(a, self.environment)
-                               for a in self.environment.opponents]
-
-        # In case there is no more opponents the list above is empty
-        if not distances_opponents:
-            distances_opponents = [np.full((
-                self.environment.n_rows,
-                self.environment.n_cols),
-                self.environment.n_rows * self.environment.n_cols)]
-
-        # Calculate the minimum distance to the cells for the whole teams
-        distances_agents = np.array(distances_agents).min(axis=0)
-        distances_opponents = np.array(distances_opponents).min(axis=0)
-
-        # Combined has a negative value for cells closer to allies and positive
-        # for cells closer to opponents
-        combined = distances_agents - distances_opponents
-        reward2 = sum(sum((combined < 0).astype(int))) - sum(sum((combined > 0).astype(int)))
-        range2 = (self.environment.n_rows*self.environment.n_cols) - \
-                 (-(self.environment.n_rows*self.environment.n_cols))
-        reward2 = reward2 / (self.environment.n_rows * self.environment.n_cols)
-        reward2 = (reward2 - (-100)) / range2
-
-        return self.r1_w*reward1 + self.r2_w*reward2
 
 
 if __name__ == '__main__':

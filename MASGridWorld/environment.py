@@ -49,6 +49,9 @@ class Environment:
                 a.brain = self.target_net
 
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
+        self.r1_w = 0.5
+        self.r2_w = 0.2
+        self.r3_w = 0.3
 
     @property
     def grid(self):
@@ -138,9 +141,17 @@ class Environment:
         # Check for overlapping opponents
         agents = [a.get_position() for a in self.agents]
 
+        # Eaten opponents
+        eaten_opponents = [oppo for oppo in self.opponents
+                           if oppo.get_position() in agents]
+
+        training_agent = next(filter(lambda a: a.training, self.agents))
+        training_ate = training_agent.get_position() in eaten_opponents
         # Delete eaten opponents
         self.opponents = [oppo for oppo in self.opponents
-                          if oppo.get_position() not in agents]
+                           if oppo.get_position() not in agents]
+
+        return self.get_reward(int(training_ate))
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
@@ -200,50 +211,57 @@ class Environment:
         :return:
         """
 
-        valid_obs = False
+        # valid_obs = False
+        #
+        # while not valid_obs:
+        #
+        #     # Decide number of obstacles and their length
+        #     n_obs = randint(1, int((rows + cols) // 4))
+        #     obs_length = [randint(2, int(rows // 2)) for _ in range(n_obs)]
+        #
+        #     # Generate all x, y combinations
+        #     combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
+        #
+        #     obs_list = list()
+        #
+        #     for _ in range(n_obs):
+        #         obs = list()
+        #         # Random obstacle length
+        #         length = random.choice(obs_length)
+        #         del obs_length[obs_length.index(length)]
+        #
+        #         # Random position from grid
+        #         choice_pos = random.choice(combos)
+        #         obs.append(choice_pos)
+        #         del combos[combos.index(choice_pos)]
+        #
+        #         for _ in range(length - 1):
+        #             last_x, last_y = obs[-1]
+        #             adj_cells = adjacent_cells(last_x, last_y, rows, cols, obs,
+        #                                        combos)
+        #             if not adj_cells:
+        #                 continue
+        #             next_cell = random.choice(adj_cells)
+        #             obs.append(next_cell)
+        #             del combos[combos.index(next_cell)]
+        #
+        #         obs_list.append(obs)
 
-        while not valid_obs:
+        obs_list = [
+            [(3, 3), (3, 4), (3, 5), (3, 6)],
+            [(4, 3), (4, 4), (4, 5), (4, 6)],
+            [(5, 3), (5, 4), (5, 5), (5, 6)],
+            [(6, 3), (6, 4), (6, 5), (6, 6)],
+        ]
 
-            # Decide number of obstacles and their length
-            n_obs = randint(1, int((rows + cols) // 4))
-            obs_length = [randint(2, int(rows // 2)) for _ in range(n_obs)]
+        self.obstacles = obs_list
+        self.allowed_moves_per_position = self.create_allowed_moves()
 
-            # Generate all x, y combinations
-            combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
-
-            obs_list = list()
-
-            for _ in range(n_obs):
-                obs = list()
-                # Random obstacle length
-                length = random.choice(obs_length)
-                del obs_length[obs_length.index(length)]
-
-                # Random position from grid
-                choice_pos = random.choice(combos)
-                obs.append(choice_pos)
-                del combos[combos.index(choice_pos)]
-
-                for _ in range(length - 1):
-                    last_x, last_y = obs[-1]
-                    adj_cells = adjacent_cells(last_x, last_y, rows, cols, obs,
-                                               combos)
-                    if not adj_cells:
-                        continue
-                    next_cell = random.choice(adj_cells)
-                    obs.append(next_cell)
-                    del combos[combos.index(next_cell)]
-
-                obs_list.append(obs)
-
-            self.obstacles = obs_list
-            self.allowed_moves_per_position = self.create_allowed_moves()
-
-            # Check validity of obs positions / avoid trapping agents
-            start_pos = random.choice(combos)
-            reachability_matrix = bfs(start_pos, self)
-            valid_obs = sum(sum((reachability_matrix > 0).astype(int))) + 1 + len(sum(obs_list, []))
-            valid_obs = valid_obs == self.n_rows * self.n_cols
+                # Check validity of obs positions / avoid trapping agents
+                # start_pos = random.choice(combos)
+                # reachability_matrix = bfs(start_pos, self)
+                # valid_obs = sum(sum((reachability_matrix > 0).astype(int))) + 1 + len(sum(obs_list, []))
+                # valid_obs = valid_obs == self.n_rows * self.n_cols
 
     def reset(self, training=True):
         self.generate_random_obstacles(self.n_rows, self.n_cols)
@@ -269,6 +287,54 @@ class Environment:
 
     def is_over(self):
         return len(self.opponents) == 0
+
+    def get_reward(self, training_ate):
+        # Reward 1 -> number of agents
+        reward1 = (self.n_agents - self.n_opponents)**2
+
+        range1 = self.n_agents**2
+        # range1 = self.allies ** 2 - (self.allies - self.opponents) ** 2
+        # reward1 = (reward1 - (self.allies - (self.opponents ** 2))) / range1
+        reward1 = reward1 / range1
+
+        # bottom_limit = self.allies - (self.opponents ** 2)
+        # # top limit is self.allies
+        # reward_range = self.allies - bottom_limit
+        # shift = (reward_range / 2) - self.allies
+        # reward1 = (reward1 + shift) / (reward_range / 2)
+
+        # Reward 2 -> board coverage
+        combined = self.reachability()
+        reward2 = sum(sum((combined < 0).astype(int))) - \
+                  sum(sum((combined > 0).astype(int)))
+        range2 = (self.n_rows*self.n_cols) - \
+                 (-(self.n_rows*self.n_cols))
+        reward2 = reward2 / (self.n_rows * self.n_cols)
+        reward2 = (reward2 - (-100)) / range2
+
+        return self.r1_w*reward1 + self.r2_w*reward2 + self.r3_w*training_ate
+
+    def reachability(self):
+        # Do BFS for ally agents and opponents
+        distances_agents = [bfs(a, self)
+                            for a in self.agents]
+        distances_opponents = [bfs(a, self)
+                               for a in self.opponents]
+
+        # In case there is no more opponents the list above is empty
+        if not distances_opponents:
+            distances_opponents = [np.full((
+                self.n_rows,
+                self.n_cols),
+                self.n_rows * self.n_cols)]
+
+        # Calculate the minimum distance to the cells for the whole teams
+        distances_agents = np.array(distances_agents).min(axis=0)
+        distances_opponents = np.array(distances_opponents).min(axis=0)
+
+        # Combined has a negative value for cells closer to allies and positive
+        # for cells closer to opponents
+        return distances_agents - distances_opponents
 
 
 if __name__ == '__main__':
