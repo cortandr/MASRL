@@ -251,7 +251,8 @@ class Environment:
             n_agents=self.n_agents,
             n_opponents=self.n_opponents,
             rows=self.n_rows,
-            cols=self.n_cols
+            cols=self.n_cols,
+            cluster=False
         )
 
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
