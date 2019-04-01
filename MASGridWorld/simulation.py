@@ -28,7 +28,7 @@ class Sim:
         self.allies = allies
         self.opponents = opponents
         self.world_size = world_size
-        self.moves_limit = 20
+        self.moves_limit = 30
         self.experience_replay = list()
         self.training_batch_size = train_batch_size
         self.n_games = n_games
@@ -105,7 +105,7 @@ class Sim:
                 self.train_ally(sim/2)
 
             # Update training net every 10 simulations
-            if sim % 1000 == 0:
+            if sim % 250 == 0:
                 self.update_target_net()
                 print("-------------------------------")
                 print("Sim checkpoint : {}".format(sim))

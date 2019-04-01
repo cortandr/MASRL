@@ -61,7 +61,7 @@ class Brain:
                     return idx
                 random_sum = random_sum - el if not np.isnan(el) else random_sum
         elif exploration_type == 'e-greedy':
-            # Mask distribution bbased on allowed moves
+            # Mask distribution based on allowed moves
             moves_mask = np.array([1 if pos else np.nan for pos in allowed_moves])
             masked_q_values = q_values * moves_mask
 

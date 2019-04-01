@@ -33,7 +33,7 @@ class Environment:
             n_opponents=n_opponents,
             rows=n_rows,
             cols=n_cols,
-            cluster=False
+            cluster=True
         )
 
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
@@ -48,9 +48,9 @@ class Environment:
                 a.brain = self.target_net
 
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
-        self.r1_w = 0.4
-        self.r2_w = 0.4
-        self.r3_w = 0.2
+        self.r1_w = 0
+        self.r2_w = 1.0
+        self.r3_w = 0
 
     @property
     def grid(self):
@@ -157,8 +157,12 @@ class Environment:
         state[0][training_x][training_y][0] = 1
 
         # Get next state
+        next_training_x, next_training_y = training_agent.get_position()
         next_state = self.brain_input_grid
-        next_state = np.array([copy.deepcopy(next_state)]) if next_state is not None else None
+
+        if next_state is not None:
+            next_state = np.array([copy.deepcopy(next_state)])
+            next_state[0][next_training_x][next_training_y][0] = 1
 
         return state, next_state, self.get_reward(int(training_ate))
 
@@ -279,7 +283,7 @@ class Environment:
             n_opponents=self.n_opponents,
             rows=self.n_rows,
             cols=self.n_cols,
-            cluster=False
+            cluster=True
         )
 
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
