@@ -6,7 +6,7 @@ import random
 class Brain:
 
     def __init__(self, training, input_size=(10, 10), learning_rate=1e-4,
-                 decay=1e-2, exploration_rate=0.8, discount_rate=0.7,
+                 decay=1e-2, exploration_rate=1.0, discount_rate=0.7,
                  output_dim=8):
         self.input_size = input_size
         self.exploration_rate = exploration_rate
@@ -29,10 +29,7 @@ class Brain:
         self.output_dim = output_dim
         self.build_network()
 
-    def set_mask(self, new_mask):
-        self.action_mask = new_mask
-
-    def predict(self, input_tensor, allowed_moves):
+    def predict(self, input_tensor, allowed_moves, exploration_type='boltzmann'):
 
         predictions = self.sess.run(
             self.Q_dist,
@@ -49,13 +46,21 @@ class Brain:
             return random.choice([i for i in range(len(allowed_moves))
                                   if allowed_moves[i] is not None])
 
-        if not self.training:
-            return np.nanargmax(masked_q_values)
+        if exploration_type == 'boltzmann':
+            if not self.training:
+                return np.nanargmax(masked_q_values)
 
-        for idx, el in enumerate(masked_q_values[0]):
-            if el and random_sum <= el:
-                return idx
-            random_sum = random_sum - el if not np.isnan(el) else random_sum
+            for idx, el in enumerate(masked_q_values[0]):
+                if el and random_sum <= el:
+                    return idx
+                random_sum = random_sum - el if not np.isnan(el) else random_sum
+        elif exploration_type == 'e-greedy':
+            # e-greedy exploration
+            if self.training and random.uniform(0, 1) < self.exploration_rate:
+                action = random.choice(masked_q_values)
+                return np.argwhere(masked_q_values[action])
+            else:
+                return np.nanargmax(masked_q_values)
 
     def build_network(self):
 

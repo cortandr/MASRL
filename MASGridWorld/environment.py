@@ -122,6 +122,8 @@ class Environment:
 
     def step(self):
 
+        training_agent = next(filter(lambda a: a.training, self.agents))
+
         for dummy in self.opponents:
             allowed_moves = self.allowed_moves(dummy)
             dummy.choose_action(
@@ -129,6 +131,7 @@ class Environment:
                 self.agents)
 
         state_tensor = np.array([copy.deepcopy(self.brain_input_grid)])
+        training_x, training_y = training_agent.get_position()
 
         for agent in self.agents:
             allowed_moves = self.allowed_moves(agent)
@@ -144,17 +147,20 @@ class Environment:
         eaten_opponents = [oppo for oppo in self.opponents
                            if oppo.get_position() in agents]
 
-        training_agent = next(filter(lambda a: a.training, self.agents))
         training_ate = training_agent.get_position() in eaten_opponents
         # Delete eaten opponents
         self.opponents = [oppo for oppo in self.opponents
                            if oppo.get_position() not in agents]
 
+        # Initial State
+        state = copy.deepcopy(state_tensor)
+        state[0][training_x][training_y][0] = 1
+
         # Get next state
         next_state = self.brain_input_grid
         next_state = np.array([copy.deepcopy(next_state)]) if next_state is not None else None
 
-        return state_tensor, next_state, self.get_reward(int(training_ate))
+        return state, next_state, self.get_reward(int(training_ate))
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """

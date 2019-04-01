@@ -102,15 +102,12 @@ class Sim:
 
             sim += 1
 
-            # if sim < 50000:
-            #     self.r1_w += 8e-6
-            #     self.r2_w -= 8e-6
-            if sim < 100000:
-                # training_agent.brain.exploration_rate -= 5e-5
-                training_agent.brain.temp -= 9e-6
+            if sim < 200000:
+                training_agent.brain.exploration_rate -= 4.5e-6
+                training_agent.brain.temp -= 4.5e-6
 
             # Train every 2 simulations
-            if sim % 10 == 0:
+            if sim % 5 == 0:
                 self.train_ally(sim/2)
 
             # Update training net every 10 simulations
@@ -196,14 +193,23 @@ class Sim:
                         target_net.input_layer: transition["next_state"],
                     })
 
+                agent_position = np.argwhere(transition["state"][0, :, :, 0])
+                allowed_moves = self.environment.allowed_moves(
+                    (agent_position[0][0], agent_position[0][1])
+                )
+
+                moves_mask = np.array(
+                    [1 if pos else np.nan for pos in allowed_moves])
+                masked_q_next = q_next * moves_mask
+
                 # Compute target Q value
-                target = transition["reward"] + discount_rate * (np.amax(q_next))
+                target = transition["reward"] + discount_rate * (np.nanmax(masked_q_next))
 
             # Update Q values vector with target value
-            target_q = target_net.sess.run(
-                    target_net.Q_values,
+            target_q = training_net.sess.run(
+                    training_net.Q_values,
                     feed_dict={
-                        target_net.input_layer: transition["state"],
+                        training_net.input_layer: transition["state"],
                     })
             target_q[0][transition["action"]] = target
 
@@ -258,9 +264,9 @@ if __name__ == '__main__':
         allies=5,
         opponents=5,
         world_size=(10, 10),
-        n_games=200000,
+        n_games=400000,
         train_batch_size=32,
-        replay_mem_limit=100000,
+        replay_mem_limit=200000,
         viz=viz,
         viz_execution=viz_execution,
         train_saving=viz_execution)
