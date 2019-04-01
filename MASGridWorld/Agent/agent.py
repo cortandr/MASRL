@@ -13,7 +13,10 @@ class Agent:
 
     def choose_action(self, allowed_moves, state):
 
-        best_move_idx = self.brain.predict(state, allowed_moves)
+        best_move_idx = self.brain.predict(
+            state,
+            allowed_moves,
+            exploration_type='e-greedy')
 
         self.position = allowed_moves[best_move_idx]
         self.chosen_action = best_move_idx

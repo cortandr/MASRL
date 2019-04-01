@@ -31,22 +31,28 @@ class Brain:
 
     def predict(self, input_tensor, allowed_moves, exploration_type='boltzmann'):
 
-        predictions = self.sess.run(
-            self.Q_dist,
+        q_values, q_dist = self.sess.run(
+            [self.Q_values, self.Q_dist],
             feed_dict={
                 self.input_layer: input_tensor,
             })
 
-        moves_mask = np.array([1 if pos else 0 for pos in allowed_moves])
-        masked_q_values = predictions * moves_mask
-        prob_sum = sum(masked_q_values[0])
-        random_sum = random.uniform(0, prob_sum)
-        masked_q_values[masked_q_values == 0] = None
-        if all(np.isnan(masked_q_values[0])):
-            return random.choice([i for i in range(len(allowed_moves))
-                                  if allowed_moves[i] is not None])
-
         if exploration_type == 'boltzmann':
+            # Mask distribution bbased on allowed moves
+            moves_mask = np.array([1 if pos else 0 for pos in allowed_moves])
+            masked_q_values = q_dist * moves_mask
+
+            # Apply random choice with probability given by softmax op
+            prob_sum = sum(masked_q_values[0])
+            random_sum = random.uniform(0, prob_sum)
+            masked_q_values[masked_q_values == 0] = None
+
+            # Cover case in which softmax gives a 1 for a not allowed move
+            if all(np.isnan(masked_q_values[0])):
+                return random.choice([i for i in range(len(allowed_moves))
+                                      if allowed_moves[i] is not None])
+
+            # Exploit if not training
             if not self.training:
                 return np.nanargmax(masked_q_values)
 
@@ -55,12 +61,17 @@ class Brain:
                     return idx
                 random_sum = random_sum - el if not np.isnan(el) else random_sum
         elif exploration_type == 'e-greedy':
+            # Mask distribution bbased on allowed moves
+            moves_mask = np.array([1 if pos else np.nan for pos in allowed_moves])
+            masked_q_values = q_values * moves_mask
+
             # e-greedy exploration
             if self.training and random.uniform(0, 1) < self.exploration_rate:
-                action = random.choice(masked_q_values)
-                return np.argwhere(masked_q_values[action])
+                action_value = random.choice(
+                    [el for el in masked_q_values[0] if not np.isnan(el)])
+                return np.argwhere(masked_q_values[0] == action_value)[0][0]
             else:
-                return np.nanargmax(masked_q_values)
+                return np.nanargmax(masked_q_values[0])
 
     def build_network(self):
 

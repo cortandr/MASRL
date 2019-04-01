@@ -74,17 +74,11 @@ class Sim:
 
             while sim_moves < self.moves_limit and not self.environment.is_over():
 
-                # Current state
-                # curr_state = self.environment.brain_input_grid
-
                 # Apply step in Environment
                 curr_state, next_state, reward = self.environment.step()
 
                 # Get agent chosen action
                 action = training_agent.get_chosen_action()
-
-                # Get state after chosen action is applied
-                # next_state = self.environment.brain_input_grid
 
                 episode_reward.append(reward)
 
