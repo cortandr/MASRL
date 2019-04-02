@@ -1,6 +1,11 @@
-import tensorflow as tf
+from keras.models import model_from_json
 import numpy as np
+from keras.models import Model
+from keras.layers import Dense, Conv2D, BatchNormalization, \
+    Flatten, Dropout, Activation, Reshape, Input, MaxPool2D, add
+from keras.optimizers import Adam
 import random
+import pickle
 
 
 class Brain:
@@ -10,32 +15,22 @@ class Brain:
                  output_dim=8):
         self.input_size = input_size
         self.exploration_rate = exploration_rate
-        self.input_layer = None
-        self.target_Q = None
-        self.Q_values = None
-        self.Q_dist = None
         self.learning_rate = learning_rate
         self.lr_decay = decay
         self.discount_rate = discount_rate
-        self.merged_summary = None
         self.loss = None
-        self.train_op = None
-        self.global_step = None
-        self.saver = None
-        self.sess = None
-        self.writer = None
         self.temp = 1.0
         self.training = training
         self.output_dim = output_dim
-        self.build_network()
+        self.model = self.build_network()
 
     def predict(self, input_tensor, allowed_moves, exploration_type='boltzmann'):
 
-        q_values, q_dist = self.sess.run(
-            [self.Q_values, self.Q_dist],
-            feed_dict={
-                self.input_layer: input_tensor,
-            })
+        q_values = self.model.predict(input_tensor)
+
+        # Use softmax for exploration
+        q_dist = np.exp(q_values[0]/self.temp)/sum(np.exp(q_values[0]/self.temp))
+        q_dist = np.reshape(q_dist, newshape=(1, self.output_dim))
 
         if exploration_type == 'boltzmann':
             # Mask distribution bbased on allowed moves
@@ -75,152 +70,122 @@ class Brain:
 
     def build_network(self):
 
-        g = tf.Graph()
-        with g.as_default():
-            # Input Layer
-            self.input_layer = tf.placeholder(
-                tf.float32,
-                [None, self.input_size[0], self.input_size[1], 4])
-            self.target_Q = tf.placeholder(tf.float32, (None, 1, 8))
+        input_layer = Input(shape=(self.input_size[0], self.input_size[1], 4))
 
-            conv1 = tf.keras.layers.Conv2D(
-                filters=32,
-                kernel_size=[3, 3],
-                strides=1,
-                padding="same",
-                activation=tf.nn.relu,
-                name="Conv_1")(self.input_layer)
+        conv1 = Conv2D(
+            filters=32,
+            kernel_size=3,
+            activation='relu',
+            padding='same',
+        )(input_layer)
 
-            conv2 = tf.keras.layers.Conv2D(
-                filters=32,
-                kernel_size=[3, 3],
-                strides=1,
-                padding="same",
-                activation=tf.nn.relu,
-                data_format='channels_last',
-                name="Conv_2")(conv1)
+        conv2 = Conv2D(
+            filters=32,
+            kernel_size=3,
+            activation='relu',
+            padding='same',
+        )(conv1)
 
-            batch_norm1 = tf.keras.layers.BatchNormalization(
-                axis=3,
-                name="BatchNorm1"
-            )(conv2)
+        batch_norm1 = BatchNormalization()(conv2)
 
-            conv3 = tf.keras.layers.Conv2D(
-                filters=32,
-                kernel_size=[3, 3],
-                strides=1,
-                padding="same",
-                activation=tf.nn.relu,
-                data_format='channels_last',
-                name="Conv_3")(batch_norm1)
+        conv3 = Conv2D(
+            filters=32,
+            kernel_size=3,
+            activation='relu',
+            padding='same',
+        )(batch_norm1)
 
-            skip_connection1 = tf.concat(
-                [conv3, conv1],
-                axis=3,
-                name="SkipConnection1"
-            )
-            max_pool1 = tf.keras.layers.MaxPool2D(
-                strides=1,
-                pool_size=2,
-                name="MaxPool1"
-            )(skip_connection1)
+        skip_conn1 = add([conv1, conv3])
 
-            conv4 = tf.keras.layers.Conv2D(
-                filters=32,
-                kernel_size=[3, 3],
-                strides=1,
-                padding="same",
-                activation=tf.nn.relu,
-                data_format='channels_last',
-                name="Conv_4")(max_pool1)
+        max_pool1 = MaxPool2D()(skip_conn1)
 
-            batch_norm2 = tf.keras.layers.BatchNormalization(
-                axis=3,
-                name="BatchNorm2"
-            )(conv4)
+        conv4 = Conv2D(
+            filters=32,
+            kernel_size=3,
+            activation='relu',
+            padding='same',
+        )(max_pool1)
 
-            conv5 = tf.keras.layers.Conv2D(
-                filters=32,
-                kernel_size=[3, 3],
-                strides=1,
-                padding="same",
-                activation=tf.nn.relu,
-                data_format='channels_last',
-                name="Conv_5")(batch_norm2)
+        batch_norm2 = BatchNormalization()(conv4)
 
-            skip_connection2 = tf.concat(
-                [conv5, max_pool1],
-                axis=3,
-                name="SkipConnection2"
-            )
+        conv5 = Conv2D(
+            filters=32,
+            kernel_size=3,
+            activation='relu',
+            padding='same',
+        )(batch_norm2)
 
-            # Averaging pooling Layer
-            with tf.name_scope("AveragePooling"):
-                avg_pool_out = tf.reduce_mean(skip_connection2, axis=(1, 2),
-                                              keepdims=True)
-                avg_pool_output = tf.keras.layers.Flatten()(avg_pool_out)
-                global_avg_pool = tf.keras.layers.BatchNormalization(
-                    axis=1)(avg_pool_output)
+        skip_conn1 = add([max_pool1, conv5])
 
-            # Fully connected NN
-            # First layer
-            fc_1 = tf.keras.layers.Dense(
-                units=64,
-                activation=tf.nn.relu,
-                name="fc_1"
-            )(global_avg_pool)
+        flattened = Flatten()(skip_conn1)
 
-            self.Q_values = tf.keras.layers.Dense(
-                units=self.output_dim,
-                activation=tf.nn.tanh,
-                name="QValues"
-            )(fc_1)
+        fc_1 = Dense(
+            units=256,
+        )(flattened)
+        fc_batch_norm = BatchNormalization()(fc_1)
+        fc_act = Activation(activation='relu')(fc_batch_norm)
+        dropout = Dropout(rate=0.5)(fc_act)
 
-            self.Q_dist = tf.nn.softmax(
-                logits=self.Q_values/self.temp,
-                name="Q_Dist"
-            )
+        fc_2 = Dense(
+            units=self.output_dim,
+            activation='linear'
+        )(dropout)
 
-            # Calculate Loss
-            with tf.name_scope("Loss"):
-                self.loss = tf.reduce_mean(
-                    tf.square(self.target_Q - self.Q_values))
+        output = Reshape((-1, self.output_dim))(fc_2)
 
-            with tf.name_scope("Global_Step"):
-                self.global_step = tf.Variable(0, trainable=False)
+        model = Model(inputs=input_layer, outputs=output)
 
-            with tf.name_scope("Learning_Rate"):
-                self.learning_rate = tf.train.exponential_decay(
-                    learning_rate=0.1,
-                    global_step=self.global_step,
-                    decay_steps=1000,
-                    decay_rate=0.95,
-                    staircase=True
-                )
+        optimizer = Adam(
+            lr=self.learning_rate,
+            beta_1=0.9,
+            beta_2=0.999,
+            epsilon=None,
+            decay=0.0,
+            amsgrad=False
+        )
+        model.compile(
+            loss="mean_squared_error",
+            optimizer=optimizer,
+            metrics=["mse"]
+        )
 
-            with tf.name_scope("Train"):
-                self.train_op = tf.train.AdamOptimizer(
-                    learning_rate=self.learning_rate
-                ).minimize(self.loss, self.global_step)
+        return model
 
-            # Create tensor board summaries
-            tf.summary.scalar("Learning_Rate", self.learning_rate)
-            tf.summary.scalar("Global_Step", self.global_step)
-            tf.summary.scalar("Loss", self.loss)
-
-            self.merged_summary = tf.summary.merge_all()
-
-            # Initialize all variables
-            init = tf.global_variables_initializer()
-            self.saver = tf.train.Saver()
-            self.sess = tf.Session()
-            self.sess.run(init)
-            self.writer = tf.summary.FileWriter("tensorboard/mas/1")
-            self.writer.add_graph(self.sess.graph)
+    def train(self, X, y, batch_size):
+        history = self.model.fit(
+            X, y, batch_size=batch_size, epochs=1, verbose=0)
+        return history
 
     def save_model(self, path, name):
-        p = self.saver.save(self.sess, (path + "model_" + name))
-        return p
+        # with open(path + "model_" + name + ".pkl", "wb") as f:
+        #     pickle.dump(self.model, f)
+        # serialize model to JSON
+        model_json = self.model.to_json()
+        with open(path+"model_"+name+".json", "w") as json_file:
+            json_file.write(model_json)
+        # serialize weights to HDF5
+        self.model.save_weights(path+"model_"+name+".h5")
 
-    def load_model(self, path):
-        self.saver.restore(self.sess, path)
+    def load_model(self, path, name):
+        # with open(path + "model_" + name + ".pkl", "rb") as f:
+        #     self.model = pickle.load(f)
+        # load json and create model
+        json_file = open(path+"model_"+name+".json", 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        self.model = model_from_json(loaded_model_json)
+        # load weights into new model
+        self.model.load_weights(path+"model_"+name+".h5")
+        optimizer = Adam(
+            lr=self.learning_rate,
+            beta_1=0.9,
+            beta_2=0.999,
+            epsilon=None,
+            decay=0.0,
+            amsgrad=False
+        )
+        self.model.compile(
+            loss="mean_squared_error",
+            optimizer=optimizer,
+            metrics=["mse"]
+        )

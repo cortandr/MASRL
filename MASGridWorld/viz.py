@@ -20,7 +20,7 @@ class Viz(object):
             self.colors = {'default': (150, 150, 150),
                             0: (255, 255, 255),
                             1: (  0, 255,   0),
-                            2: (255,   0,   0),
+                            2: (  0,   0, 255),
                            -1: (  0,   0,   0)}
         self.save_dir = save_dir
 
@@ -30,9 +30,6 @@ class Viz(object):
         :param environment: Enviroment object to visualize.
         :return: frame
         """
-        #if not isinstance(environment, Environment):
-        #    print('An Environment was not provided')
-        #    return
 
         n_rows = len(environment_grid)
         n_cols = len(environment_grid[0])
@@ -45,7 +42,6 @@ class Viz(object):
         img = np.zeros((self.img_size, self.img_size, 3), np.uint8)
         img[:, :] = self.colors["default"]
 
-        #env_matrix = environment.grid
         env_matrix = environment_grid
 
         for r in range(n_rows):

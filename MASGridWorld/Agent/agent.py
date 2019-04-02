@@ -1,5 +1,4 @@
 import uuid
-import numpy as np
 from utils import *
 
 
@@ -16,7 +15,7 @@ class Agent:
         best_move_idx = self.brain.predict(
             state,
             allowed_moves,
-            exploration_type='e-greedy')
+            exploration_type='boltzmann')
 
         self.position = allowed_moves[best_move_idx]
         self.chosen_action = best_move_idx

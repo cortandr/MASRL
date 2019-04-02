@@ -48,9 +48,9 @@ class Environment:
                 a.brain = self.target_net
 
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
-        self.r1_w = 0
-        self.r2_w = 1.0
-        self.r3_w = 0
+        self.global_capture_weight = 0.5
+        self.reachability_weight = 0.5
+        self.training_ate_weight = 0.5
 
     @property
     def grid(self):
@@ -120,7 +120,7 @@ class Environment:
             return self.allowed_moves_per_position[agent]
         return self.allowed_moves_per_position[agent.get_position()]
 
-    def step(self):
+    def step(self, terminal_state):
 
         training_agent = next(filter(lambda a: a.training, self.agents))
 
@@ -164,7 +164,7 @@ class Environment:
             next_state = np.array([copy.deepcopy(next_state)])
             next_state[0][next_training_x][next_training_y][0] = 1
 
-        return state, next_state, self.get_reward(int(training_ate))
+        return state, next_state, self.get_reward(int(training_ate), int(terminal_state))
 
     def generate_random_agents(self, n_agents, n_opponents, rows, cols, cluster=True):
         """
@@ -262,9 +262,8 @@ class Environment:
 
         obs_list = [
             [(3, 3), (3, 4), (3, 5), (3, 6)],
-            [(4, 3), (4, 4), (4, 5), (4, 6)],
-            [(5, 3), (5, 4), (5, 5), (5, 6)],
-            [(6, 3), (6, 4), (6, 5), (6, 6)],
+            [(4, 3), (5, 3), (6, 3)],
+            [(4, 6), (5, 6), (6, 6)],
         ]
 
         self.obstacles = obs_list
@@ -301,23 +300,24 @@ class Environment:
     def is_over(self):
         return len(self.opponents) == 0
 
-    def get_reward(self, training_ate):
+    def get_reward(self, training_ate, terminal_state):
 
         # Reward 1 -> number of agents
-        reward1 = (self.n_agents - self.n_opponents)**2
-
-        range1 = self.n_agents ** 2
-        shift = (range1 / 2)
-        reward1 = (reward1 - shift) / (range1 / 2)
+        reward1 = self.n_agents - len(self.opponents)
 
         # Reward 2 -> board coverage
         combined = self.reachability()
         reward2 = sum(sum((combined < 0).astype(int))) - \
                   sum(sum((combined > 0).astype(int)))
-        range2 = self.n_rows*self.n_cols
-        reward2 = reward2 / range2
+        range2 = (self.n_rows*self.n_cols, -self.n_rows*self.n_cols)
+        reward2 = ((reward2 - range2[1]) / (range2[0] - range2[1])) * 5
 
-        return self.r1_w*reward1 + self.r2_w*reward2 + self.r3_w*training_ate
+        if terminal_state or self.is_over():
+            return self.global_capture_weight * reward1 + \
+                   self.reachability_weight * reward2
+
+        return self.training_ate_weight * training_ate + \
+               self.reachability_weight * reward2
 
     def reachability(self):
         # Do BFS for ally agents and opponents

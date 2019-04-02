@@ -2,7 +2,6 @@ import numpy as np
 from environment import Environment
 import random
 import pickle
-from utils import bfs
 from viz import Viz
 import os
 import copy
@@ -75,7 +74,12 @@ class Sim:
             while sim_moves < self.moves_limit and not self.environment.is_over():
 
                 # Apply step in Environment
-                curr_state, next_state, reward = self.environment.step()
+                curr_state, next_state, reward = self.environment.step(
+                    terminal_state=sim_moves == self.moves_limit - 1
+                )
+
+                # if self.environment.is_over():
+                #     next_state = None
 
                 # Get agent chosen action
                 action = training_agent.get_chosen_action()
@@ -101,11 +105,11 @@ class Sim:
                 training_agent.brain.temp -= 4.5e-6
 
             # Train every 2 simulations
-            if sim % 5 == 0:
-                self.train_ally(sim/2)
+            if sim % 10 == 0:
+                self.train_ally()
 
             # Update training net every 10 simulations
-            if sim % 250 == 0:
+            if sim % 1000 == 0:
                 self.update_target_net()
                 print("-------------------------------")
                 print("Sim checkpoint : {}".format(sim))
@@ -120,8 +124,7 @@ class Sim:
                 sim_moves = 0
                 env_seq = [copy.deepcopy(self.environment.grid)]
                 while sim_moves < self.moves_limit and not self.environment.is_over():
-                    curr_state = self.environment.brain_input_grid
-                    self.environment.step()
+                    self.environment.step(False)
                     env_seq.append(copy.deepcopy(self.environment.grid))
                     sim_moves += 1
                 frames = [self.viz.single_frame(env) for env in env_seq]
@@ -140,10 +143,10 @@ class Sim:
             self.environment.reset()
 
     def update_target_net(self):
-        p = self.environment.training_net.save_model("Models/", "temporary_update")
-        self.environment.target_net.load_model(p)
+        self.environment.training_net.save_model("Models/", "temporary_update")
+        self.environment.target_net.load_model("Models/", "temporary_update")
 
-    def train_ally(self, index):
+    def train_ally(self):
         """
         Takes a random batch from experience replay memory and uses it to train
         the agent's brain NN
@@ -161,6 +164,19 @@ class Sim:
 
         training_net = self.environment.training_net
         target_net = self.environment.target_net
+
+        X, y = self.create_training_batch(
+            target_net=target_net,
+            training_net=training_net,
+            mini_batch=mini_batch,
+            gamma=discount_rate
+        )
+
+        history = training_net.train(X, y, self.training_batch_size)
+
+        self.metrics["loss"] += history.history["loss"]
+
+    def create_training_batch(self, target_net, training_net, mini_batch, gamma):
 
         # Build input and target network batches
         input_batch = np.ndarray(
@@ -181,30 +197,23 @@ class Sim:
                 target = transition["reward"]
             else:
                 # Compute Q values on next state
-                q_next = target_net.sess.run(
-                    target_net.Q_values,
-                    feed_dict={
-                        target_net.input_layer: transition["next_state"],
-                    })
+                q_next = target_net.model.predict(transition["next_state"])[0]
 
+                # Filter not allowed moves
                 agent_position = np.argwhere(transition["state"][0, :, :, 0])
                 allowed_moves = self.environment.allowed_moves(
                     (agent_position[0][0], agent_position[0][1])
                 )
-
                 moves_mask = np.array(
                     [1 if pos else np.nan for pos in allowed_moves])
                 masked_q_next = q_next * moves_mask
 
                 # Compute target Q value
-                target = transition["reward"] + discount_rate * (np.nanmax(masked_q_next))
+                target = transition["reward"] + gamma * (
+                    np.nanmax(masked_q_next))
 
             # Update Q values vector with target value
-            target_q = training_net.sess.run(
-                    training_net.Q_values,
-                    feed_dict={
-                        training_net.input_layer: transition["state"],
-                    })
+            target_q = training_net.model.predict(transition["state"])[0]
             target_q[0][transition["action"]] = target
 
             input_state = np.reshape(
@@ -218,33 +227,7 @@ class Sim:
             input_batch[i] = input_state
             target_batch[i] = target_q
 
-        q = training_net.sess.run(
-            training_net.Q_values,
-            feed_dict={
-                training_net.input_layer: input_batch,
-            })
-
-        # Train neural net
-        l, _ = training_net.sess.run(
-            [training_net.loss, training_net.train_op],
-            feed_dict={
-                training_net.input_layer: input_batch,
-                training_net.target_Q: target_batch,
-                training_net.Q_values: q
-            })
-
-        self.metrics["loss"].append(l)
-
-        # Get summary
-        s = training_net.sess.run(
-            training_net.merged_summary,
-            feed_dict={
-                training_net.input_layer: input_batch,
-                training_net.target_Q: target_batch,
-                training_net.Q_values: q
-            })
-
-        training_net.writer.add_summary(s, index)
+        return input_batch, target_batch
 
 
 if __name__ == '__main__':
