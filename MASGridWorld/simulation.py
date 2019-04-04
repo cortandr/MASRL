@@ -1,34 +1,47 @@
 import numpy as np
 from environment import Environment
-import random
 import pickle
 from viz import Viz
 import os
 import copy
+from ReplayMemory import ReplayMemory
+from collections import OrderedDict
+import pandas as pd
 
 
 class Sim:
 
-    def __init__(self, allies, opponents, world_size, n_games,
-                 train_batch_size, replay_mem_limit,
-                 viz=None, viz_execution=None, train_saving=None):
-        """
+    def __init__(
+            self,
+            allies,
+            opponents,
+            world_size,
+            n_games,
+            train_batch_size,
+            replay_mem_limit,
+            training_rate=10,
+            update_rate=500,
+            sim_moves_limit=30,
+            exploration_steps=200000,
+            exploration_range=(0.1, 1.0),
+            viz=None,
+            viz_execution=None,
+            train_saving=None):
 
-        :param allies: number of allie
-        :param opponents: number of opponents
-        :param world_size: tuple (n_rows, n_cols)
-        :param n_games: number of games to play
-        :param train_batch_size: size of training batch
-        :param replay_mem_limit: replay memory size limit
-        :param viz: Visualization object
-        :param viz_execution: Function to decide when to run visualization (returns bool)
-        :param train_saving: Function to decide when to save the model (returns bool)
-        """
         self.allies = allies
         self.opponents = opponents
         self.world_size = world_size
-        self.moves_limit = 30
-        self.experience_replay = list()
+        self.moves_limit = sim_moves_limit
+        self.training_rate = training_rate
+        self.policy_dist_rate = update_rate
+        self.exploration_steps = exploration_steps
+        self.exploration_range = exploration_range
+        self.exploration_step_value = \
+            (exploration_range[1]-exploration_range[0])/exploration_steps
+        self.experience_replay = ReplayMemory(
+            batch_size=train_batch_size,
+            table_size=replay_mem_limit
+        )
         self.training_batch_size = train_batch_size
         self.n_games = n_games
         self.replay_mem_limit = replay_mem_limit
@@ -61,9 +74,8 @@ class Sim:
             sim_moves = 0
 
             # Prune replay memory by 1/5 if over limit size
-            if len(self.experience_replay) > self.replay_mem_limit:
-                prune = self.replay_mem_limit // 5
-                self.experience_replay = self.experience_replay[prune:]
+            if self.experience_replay.is_full():
+                self.experience_replay.refresh()
 
             # Get agent that is training
             training_agent = next(
@@ -78,68 +90,64 @@ class Sim:
                     terminal_state=sim_moves == self.moves_limit - 1
                 )
 
-                # if self.environment.is_over():
-                #     next_state = None
-
                 # Get agent chosen action
                 action = training_agent.get_chosen_action()
 
                 episode_reward.append(reward)
 
                 # Store transition in replay table
-                self.experience_replay.append({
+                self.experience_replay.insert({
                     "state": curr_state,
                     "action": action,
                     "next_state": next_state,
-                    "reward": reward,
+                    "reward": reward["reward_value"],
                 })
 
                 sim_moves += 1
 
-            self.metrics["reward"].append(sum(episode_reward)/len(episode_reward))
+            episode_reward = pd.DataFrame(episode_reward)
+
+            # Append new collected avg episode reward
+            self.metrics["reward"].append(OrderedDict({
+                "Simulation No.": sim,
+                "Avg Cumulative Reward": episode_reward["reward_value"].mean(),
+                "Global Capture Reward": episode_reward["Global Capture Reward"].max(),
+                "Local Capture Reward": episode_reward["Local Capture Reward"].mean(),
+                "Reachability Reward": episode_reward["Reachability Reward"].mean()
+            }))
 
             sim += 1
 
-            if sim < 200000:
-                training_agent.brain.exploration_rate -= 4.5e-6
-                training_agent.brain.temp -= 4.5e-6
+            # Diminishing exploration rate
+            if sim < self.exploration_steps:
+                training_agent.brain.policy["boltzmann"].update_exploration_rate(
+                    new_er=self.exploration_step_value
+                )
 
-            # Train every 2 simulations
-            if sim % 10 == 0:
+            # Train every N simulations
+            if sim % self.training_rate == 0:
                 self.train_ally()
 
             # Update training net every 10 simulations
-            if sim % 1000 == 0:
+            if sim % self.policy_dist_rate == 0:
                 self.update_target_net()
-                print("-------------------------------")
-                print("Sim checkpoint : {}".format(sim))
+                print("---------------------------------------------")
+                print("Sim No. : {}".format(sim))
                 print("Average Loss : {}".format(
                     sum(self.metrics["loss"])/len(self.metrics["loss"])))
-                print("Average reward : {}".format(
-                    sum(self.metrics["reward"])/len(self.metrics["reward"])))
+                mdf = pd.DataFrame(self.metrics["reward"])
+                print("Average reward : {}".format(mdf["Avg Cumulative Reward"].mean()))
+                print("Average GCR : {}".format(mdf["Global Capture Reward"].mean()))
+                print("Average LCR : {}".format(mdf["Local Capture Reward"].mean()))
+                print("Average RR : {}".format(mdf["Reachability Reward"].mean()))
 
             # Create GIF
-            if self.viz and self.viz_execution and self.viz_execution(sim):
-                self.environment.reset(False)
-                sim_moves = 0
-                env_seq = [copy.deepcopy(self.environment.grid)]
-                while sim_moves < self.moves_limit and not self.environment.is_over():
-                    self.environment.step(False)
-                    env_seq.append(copy.deepcopy(self.environment.grid))
-                    sim_moves += 1
-                frames = [self.viz.single_frame(env) for env in env_seq]
-                viz.create_gif(frames, name='simulation_%d' % sim)
+            self.visualize_gif(sim)
 
-            if self.train_saving is not None and self.train_saving(sim):
-                save_path = 'Models/'
-                if not os.path.exists(save_path):
-                    os.makedirs(save_path)
+            # Save model checkpoint
+            self.save_checkpoint(training_agent, sim)
 
-                with open(save_path + 'metrics' + '.pkl', "wb") as f:
-                    pickle.dump(self.metrics, f)
-                # Save model
-                training_agent.brain.save_model(save_path, str(sim))
-
+            # Reset game setting
             self.environment.reset()
 
     def update_target_net(self):
@@ -152,15 +160,11 @@ class Sim:
         the agent's brain NN
         :return:
         """
-        if len(self.experience_replay) < self.training_batch_size:
+        if not self.experience_replay.can_replay():
             return
 
         # Sample batch fro replay memory
-        mini_batch = random.sample(
-            self.experience_replay,
-            self.training_batch_size)
-
-        discount_rate = self.environment.training_net.discount_rate
+        mini_batch = self.experience_replay.sample()
 
         training_net = self.environment.training_net
         target_net = self.environment.target_net
@@ -169,14 +173,13 @@ class Sim:
             target_net=target_net,
             training_net=training_net,
             mini_batch=mini_batch,
-            gamma=discount_rate
         )
 
         history = training_net.train(X, y, self.training_batch_size)
 
         self.metrics["loss"] += history.history["loss"]
 
-    def create_training_batch(self, target_net, training_net, mini_batch, gamma):
+    def create_training_batch(self, target_net, training_net, mini_batch):
 
         # Build input and target network batches
         input_batch = np.ndarray(
@@ -188,6 +191,8 @@ class Sim:
             ))
 
         target_batch = np.ndarray(shape=(self.training_batch_size, 1, 8))
+
+        gamma = training_net.discount_rate
 
         for i, transition in enumerate(mini_batch):
 
@@ -228,6 +233,38 @@ class Sim:
             target_batch[i] = target_q
 
         return input_batch, target_batch
+
+    def visualize_gif(self, sim_number):
+
+        # Create GIF
+        if self.viz and self.viz_execution and self.viz_execution(sim_number):
+
+            # Reset game
+            self.environment.reset(False)
+
+            # play game run
+            sim_moves = 0
+            env_seq = [copy.deepcopy(self.environment.grid)]
+            while sim_moves < self.moves_limit and not self.environment.is_over():
+                self.environment.step(False)
+                env_seq.append(copy.deepcopy(self.environment.grid))
+                sim_moves += 1
+
+            # Connect frame as save gif
+            frames = [self.viz.single_frame(env) for env in env_seq]
+            viz.create_gif(frames, name='simulation_%d' % sim_number)
+
+    def save_checkpoint(self, training_agent, sim_number):
+
+        if self.train_saving is not None and self.train_saving(sim_number):
+            save_path = 'Models/'
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+
+            with open(save_path + 'metrics' + '.pkl', "wb") as f:
+                pickle.dump(self.metrics, f)
+            # Save model
+            training_agent.brain.save_model(save_path, str(sim_number))
 
 
 if __name__ == '__main__':

@@ -19,7 +19,14 @@ class Environment:
     The latter can be either grouped by team or spawn randomly in the grid
     """
 
-    def __init__(self, n_rows, n_cols, n_agents, n_opponents):
+    def __init__(self,
+                 n_rows,
+                 n_cols,
+                 n_agents,
+                 n_opponents,
+                 gcr_weight=0.5,
+                 lcr_weight=0.5,
+                 rr_weight = 0.5):
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.n_agents = n_agents
@@ -27,7 +34,7 @@ class Environment:
 
         self.obstacles = None
         self.allowed_moves_per_position = None
-        self.generate_random_obstacles(n_rows, n_cols)
+        self.generate_obstacles(n_rows, n_cols)
         team_agents, team_opponents = self.generate_random_agents(
             n_agents=n_agents,
             n_opponents=n_opponents,
@@ -48,9 +55,10 @@ class Environment:
                 a.brain = self.target_net
 
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
-        self.global_capture_weight = 0.5
-        self.reachability_weight = 0.5
-        self.training_ate_weight = 0.5
+        self.global_capture_weight = gcr_weight
+        self.local_capture_weight = gcr_weight
+        self.reachability_weight = rr_weight
+        self.training_ate_weight = lcr_weight
 
     @property
     def grid(self):
@@ -122,17 +130,21 @@ class Environment:
 
     def step(self, terminal_state):
 
+        # Get training agent
         training_agent = next(filter(lambda a: a.training, self.agents))
 
+        # Dummy agents take actions
         for dummy in self.opponents:
             allowed_moves = self.allowed_moves(dummy)
             dummy.choose_action(
                 allowed_moves,
                 self.agents)
 
+        # Get current state and current training agent's position
         state_tensor = np.array([copy.deepcopy(self.brain_input_grid)])
         training_x, training_y = training_agent.get_position()
 
+        # RL Agents take action
         for agent in self.agents:
             allowed_moves = self.allowed_moves(agent)
             temp_state_tensor = copy.deepcopy(state_tensor)
@@ -147,10 +159,11 @@ class Environment:
         eaten_opponents = [oppo for oppo in self.opponents
                            if oppo.get_position() in agents]
 
+        # Check if training agent ate --> for local capture reward
         training_ate = training_agent.get_position() in eaten_opponents
         # Delete eaten opponents
         self.opponents = [oppo for oppo in self.opponents
-                           if oppo.get_position() not in agents]
+                          if oppo.get_position() not in agents]
 
         # Initial State
         state = copy.deepcopy(state_tensor)
@@ -216,67 +229,74 @@ class Environment:
 
         return team_agents, team_opponents
 
-    def generate_random_obstacles(self, rows, cols):
+    def generate_obstacles(self, rows, cols, random_obs=False):
         """
         Generate random obstacles based on grid dimensions
         :param rows: x dimension  of grid
         :param cols: y dimension of grid
+        :param random_obs: boolean for random obstacle generation
         :return:
         """
 
-        # valid_obs = False
-        #
-        # while not valid_obs:
-        #
-        #     # Decide number of obstacles and their length
-        #     n_obs = randint(1, int((rows + cols) // 4))
-        #     obs_length = [randint(2, int(rows // 2)) for _ in range(n_obs)]
-        #
-        #     # Generate all x, y combinations
-        #     combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
-        #
-        #     obs_list = list()
-        #
-        #     for _ in range(n_obs):
-        #         obs = list()
-        #         # Random obstacle length
-        #         length = random.choice(obs_length)
-        #         del obs_length[obs_length.index(length)]
-        #
-        #         # Random position from grid
-        #         choice_pos = random.choice(combos)
-        #         obs.append(choice_pos)
-        #         del combos[combos.index(choice_pos)]
-        #
-        #         for _ in range(length - 1):
-        #             last_x, last_y = obs[-1]
-        #             adj_cells = adjacent_cells(last_x, last_y, rows, cols, obs,
-        #                                        combos)
-        #             if not adj_cells:
-        #                 continue
-        #             next_cell = random.choice(adj_cells)
-        #             obs.append(next_cell)
-        #             del combos[combos.index(next_cell)]
-        #
-        #         obs_list.append(obs)
+        if not random_obs:
+            obs_list = [
+                [(3, 3), (3, 4), (3, 5), (3, 6)],
+                [(4, 3), (5, 3), (6, 3)],
+                [(4, 6), (5, 6), (6, 6)],
+            ]
 
-        obs_list = [
-            [(3, 3), (3, 4), (3, 5), (3, 6)],
-            [(4, 3), (5, 3), (6, 3)],
-            [(4, 6), (5, 6), (6, 6)],
-        ]
+            self.obstacles = obs_list
+            self.allowed_moves_per_position = self.create_allowed_moves()
+            return
 
-        self.obstacles = obs_list
-        self.allowed_moves_per_position = self.create_allowed_moves()
+        valid_obs = False
+
+        while not valid_obs:
+
+            # Decide number of obstacles and their length
+            n_obs = random.randint(1, int((rows + cols) // 4))
+            obs_length = [random.randint(2, int(rows // 2)) for _ in range(n_obs)]
+
+            # Generate all x, y combinations
+            combos = [(x, y) for x in range(0, rows) for y in range(0, cols)]
+
+            obs_list = list()
+
+            for _ in range(n_obs):
+                obs = list()
+                # Random obstacle length
+                length = random.choice(obs_length)
+                del obs_length[obs_length.index(length)]
+
+                # Random position from grid
+                choice_pos = random.choice(combos)
+                obs.append(choice_pos)
+                del combos[combos.index(choice_pos)]
+
+                for _ in range(length - 1):
+                    last_x, last_y = obs[-1]
+                    adj_cells = adjacent_cells(last_x, last_y, rows, cols, obs,
+                                               combos)
+                    if not adj_cells:
+                        continue
+                    next_cell = random.choice(adj_cells)
+                    obs.append(next_cell)
+                    del combos[combos.index(next_cell)]
+
+                obs_list.append(obs)
 
                 # Check validity of obs positions / avoid trapping agents
-                # start_pos = random.choice(combos)
-                # reachability_matrix = bfs(start_pos, self)
-                # valid_obs = sum(sum((reachability_matrix > 0).astype(int))) + 1 + len(sum(obs_list, []))
-                # valid_obs = valid_obs == self.n_rows * self.n_cols
+                start_pos = random.choice(combos)
+                reachability_matrix = bfs(start_pos, self)
+                valid_obs = sum(sum((reachability_matrix > 0).astype(int))) + 1 + len(sum(obs_list, []))
+                valid_obs = valid_obs == self.n_rows * self.n_cols
 
     def reset(self, training=True):
-        self.generate_random_obstacles(self.n_rows, self.n_cols)
+
+        # Generate new obstacles
+        self.generate_obstacles(self.n_rows, self.n_cols)
+
+        # Generate agents positions
         team_agents, team_opponents = self.generate_random_agents(
             n_agents=self.n_agents,
             n_opponents=self.n_opponents,
@@ -285,39 +305,62 @@ class Environment:
             cluster=True
         )
 
+        # Instantiate agents
         self.agents = [Agent(pos, i == 0) for i, pos in enumerate(team_agents)]
         self.opponents = [DummyAgent(position=pos) for pos in team_opponents]
 
+        # Assign training and target nets to agents
         for a in self.agents:
             if a.training:
                 a.brain = self.training_net
             else:
                 a.brain = self.target_net
 
+        # Generate all allowed moves for each position of the board
         self.allowed_moves_per_position = self.create_allowed_moves()
         self.training_net.training = training
 
     def is_over(self):
         return len(self.opponents) == 0
 
-    def get_reward(self, training_ate, terminal_state):
+    def get_reward(self, lcr, terminal_state):
+        """
+        :param lcr: Local capture reward
+        :param terminal_state: Boolean for terminal state in game
+        :return:
+        """
 
-        # Reward 1 -> number of agents
-        reward1 = self.n_agents - len(self.opponents)
+        reward = {
+            "reward_value": 0,
+            "Global Capture Reward": 0,
+            "Local Capture Reward": 0,
+            "Reachability Reward": 0,
+        }
 
-        # Reward 2 -> board coverage
+        # Global capture reward
+        gcr = self.n_agents - len(self.opponents)
+
+        # Reachability reward
         combined = self.reachability()
-        reward2 = sum(sum((combined < 0).astype(int))) - \
+        rr = sum(sum((combined < 0).astype(int))) - \
                   sum(sum((combined > 0).astype(int)))
         range2 = (self.n_rows*self.n_cols, -self.n_rows*self.n_cols)
-        reward2 = ((reward2 - range2[1]) / (range2[0] - range2[1])) * 5
+        rr = ((rr - range2[1]) / (range2[0] - range2[1])) * 5
 
+        # Check for end of episode
         if terminal_state or self.is_over():
-            return self.global_capture_weight * reward1 + \
-                   self.reachability_weight * reward2
+            reward["reward_value"] += self.global_capture_weight * gcr + \
+                                        self.reachability_weight * rr
+            reward["Global Capture Reward"] = gcr
+            reward["Reachability Reward"] = rr
+            return reward
 
-        return self.training_ate_weight * training_ate + \
-               self.reachability_weight * reward2
+        # Return step reward
+        reward["reward_value"] += self.local_capture_weight * lcr + \
+                                  self.reachability_weight * rr
+        reward["Local Capture Reward"] = lcr
+        reward["Reachability Reward"] = rr
+        return reward
 
     def reachability(self):
         # Do BFS for ally agents and opponents
